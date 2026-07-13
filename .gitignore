@@ -1,0 +1,51 @@
+# Virtual Environment
+.venv/
+venv/
+env/
+ENV/
+
+# Python Cache
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Environment Variables
+.env
+.env.local
+.env.*.local
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Flask
+instance/
+.webassets-cache
+
+# Uploads & Results
+static/uploads/*
+static/results/*
+
+# Models — tracked via Git LFS (lihat .gitattributes)
+# models/best.pt  ← JANGAN di-ignore, Railway butuh file ini via LFS
+
+# OS
+Thumbs.db
+.DS_Store
+
+# Logs
+*.log
+logs/
+
+# Miscellaneous
+.pytest_cache/
+.coverage
+htmlcov/
+dist/
+build/
+*.egg-info/

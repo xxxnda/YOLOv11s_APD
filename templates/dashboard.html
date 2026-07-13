@@ -1,0 +1,696 @@
+<!DOCTYPE html>
+<html lang="id">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description"
+        content="SAFEWATCH Dashboard — Laporan Risiko APD K3 berdasarkan IBPRP PERMEN PUPR No. 10 Tahun 2021">
+    <title>SAFEWATCH — Dashboard Laporan K3</title>
+
+    <!-- Google Fonts Inter -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap"
+        rel="stylesheet">
+
+    <!-- Tailwind CSS via CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: { sans: ['Inter', 'sans-serif'] },
+                    colors: {
+                        navy: {
+                            900: '#0a1628', 800: '#0f2042', 700: '#162d5e', 600: '#1e3a8a'
+                        },
+                    },
+                    animation: {
+                        'fade-in': 'fadeIn 0.4s ease-out',
+                    },
+                    keyframes: {
+                        fadeIn: {
+                            '0%': { opacity: '0', transform: 'translateY(10px)' },
+                            '100%': { opacity: '1', transform: 'translateY(0)' },
+                        },
+                    },
+                }
+            }
+        }
+    </script>
+
+    <style>
+        /* ── Gaya dasar ─────────────────────────────────────────────── */
+        body {
+            font-family: 'Inter', sans-serif;
+            color: #1e293b;
+            background: transparent;
+        }
+
+        #bg-layer {
+            position: fixed;
+            inset: 0;
+            z-index: -1;
+            background: linear-gradient(140deg, #f0f4ff 0%, #e8eefb 50%, #f5f7ff 100%);
+        }
+
+        #bg-layer::after {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background-image: radial-gradient(rgba(59, 130, 246, 0.07) 1px, transparent 1px);
+            background-size: 28px 28px;
+        }
+
+        /* ── Navbar ───────────────────────────────────────────────────── */
+        .navbar {
+            background: rgba(255, 255, 255, 0.88);
+            backdrop-filter: blur(18px);
+            -webkit-backdrop-filter: blur(18px);
+            border-bottom: 1px solid rgba(59, 130, 246, 0.15);
+            box-shadow: 0 1px 16px rgba(30, 64, 175, 0.07);
+        }
+
+        /* ── Split-panel layout ─────────────────────────────────────────── */
+        .panel-left {
+            min-width: 0;
+        }
+
+        .panel-right {
+            min-width: 0;
+        }
+
+        /* ── Badge Tingkat Risiko ─────────────────────────────────────────── */
+        .badge-kecil {
+            background: rgba(34, 197, 94, 0.18);
+            color: #166534;
+            border: 1px solid rgba(34, 197, 94, 0.35);
+        }
+
+        .badge-sedang {
+            background: rgba(249, 115, 22, 0.2);
+            color: #9a3412;
+            border: 1px solid rgba(249, 115, 22, 0.3);
+        }
+
+        .badge-besar {
+            background: rgba(239, 68, 68, 0.2);
+            color: #991b1b;
+            border: 1px solid rgba(239, 68, 68, 0.3);
+            animation: pulseBadge 2s ease-in-out infinite;
+        }
+
+        @keyframes pulseBadge {
+
+            0%,
+            100% {
+                opacity: 1;
+            }
+
+            50% {
+                opacity: 0.65;
+            }
+        }
+
+        /* ── Tabel laporan ──────────────────────────────────────────────── */
+        .report-table {
+            table-layout: fixed;
+            width: 100%;
+        }
+
+        .report-table th {
+            background: #1e3a8a;
+            color: #ffffff;
+            font-size: 0.62rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+            padding: 9px 6px;
+            white-space: normal;
+            word-break: break-word;
+            border-bottom: 1px solid #bfdbfe;
+            text-align: center;
+        }
+
+        .report-table td {
+            padding: 8px 6px;
+            font-size: 0.72rem;
+            border-bottom: 1px solid #e2e8f0;
+            vertical-align: middle;
+            color: #1e293b;
+            word-break: break-word;
+            overflow-wrap: break-word;
+        }
+
+        .report-table tbody tr:hover {
+            background: rgba(59, 130, 246, 0.04);
+        }
+
+        /* lebar kolom */
+        .report-table col.col-no {
+            width: 5%;
+        }
+
+        .report-table col.col-apd {
+            width: 17%;
+        }
+
+        .report-table col.col-l {
+            width: 7%;
+        }
+
+        .report-table col.col-s {
+            width: 7%;
+        }
+
+        .report-table col.col-tr {
+            width: 7%;
+        }
+
+        .report-table col.col-risk {
+            width: 16%;
+        }
+
+        .report-table col.col-haz {
+            width: 41%;
+        }
+
+        /* badge tingkat risiko tidak boleh wrap */
+        .report-table td.col-risk-cell {
+            white-space: nowrap;
+        }
+
+        .report-table td.col-risk-cell span {
+            display: inline-block;
+            white-space: nowrap;
+        }
+
+        /* ── Gambar bounding box ───────────────────────────────────────────── */
+        #result-image {
+            width: 100%;
+            border-radius: 12px;
+            object-fit: contain;
+            background: #f1f5f9;
+            max-height: 480px;
+            display: block;
+        }
+
+        /* ═══════════════════════════════════════════════════════════════════
+           CSS PRINT — Layout A4 Portrait, rapi, 1 gambar + tabel
+           ═══════════════════════════════════════════════════════════════════ */
+        @media print {
+            @page {
+                size: A4 portrait;
+                margin: 15mm 15mm 15mm 15mm;
+            }
+
+            /* Sembunyikan semua, tampilkan hanya #print-area */
+            body * {
+                visibility: hidden !important;
+            }
+
+            #print-area,
+            #print-area * {
+                visibility: visible !important;
+            }
+
+            #print-area {
+                position: absolute;
+                top: 0;
+                left: 0;
+                width: 100%;
+                padding: 0;
+                background: #ffffff !important;
+                color: #000000 !important;
+            }
+
+            /* Sembunyikan elemen yang tidak perlu di PDF */
+            .no-print {
+                display: none !important;
+            }
+
+            .panel-left {
+                display: none !important;
+            }
+
+            /* ── Print Header ── */
+            .print-header {
+                display: block !important;
+                border-bottom: 2px solid #1e3a8a;
+                padding-bottom: 10px;
+                margin-bottom: 12px;
+                background: white !important;
+            }
+
+            /* ── Gambar deteksi ── */
+            .print-image-section {
+                display: block !important;
+                text-align: center;
+                margin-bottom: 14px;
+                page-break-inside: avoid;
+            }
+
+            .print-image-section img {
+                max-width: 55%;
+                max-height: 180px;
+                object-fit: contain;
+                border: 1px solid #cbd5e1;
+                border-radius: 4px;
+                display: block;
+                margin: 0 auto 4px;
+            }
+
+            .print-image-caption {
+                font-size: 8px;
+                color: #64748b;
+            }
+
+            /* ── Judul tabel di PDF ── */
+            .print-table-title {
+                display: block !important;
+                font-size: 11px;
+                font-weight: 800;
+                color: #0a1628;
+                text-transform: uppercase;
+                letter-spacing: 0.06em;
+                margin-bottom: 6px;
+                padding-top: 4px;
+                border-top: 1px solid #e2e8f0;
+            }
+
+            /* ── Tabel ── */
+            .report-table {
+                width: 100% !important;
+                table-layout: fixed !important;
+                font-size: 0.65rem !important;
+                border-collapse: collapse !important;
+            }
+
+            .report-table th,
+            .report-table td {
+                border: 1px solid #94a3b8 !important;
+                padding: 5px 7px !important;
+                color: #000 !important;
+                word-break: break-word !important;
+                overflow-wrap: break-word !important;
+                white-space: normal !important;
+            }
+
+            .report-table th {
+                background: #1e3a8a !important;
+                color: #ffffff !important;
+                -webkit-print-color-adjust: exact;
+                print-color-adjust: exact;
+            }
+
+            .badge-kecil {
+                background: #dcfce7 !important;
+                color: #166534 !important;
+                border: 1px solid #86efac !important;
+                -webkit-print-color-adjust: exact;
+                print-color-adjust: exact;
+            }
+
+            .badge-sedang {
+                background: #ffedd5 !important;
+                color: #9a3412 !important;
+                border: 1px solid #fdba74 !important;
+                -webkit-print-color-adjust: exact;
+                print-color-adjust: exact;
+            }
+
+            .badge-besar {
+                background: #fee2e2 !important;
+                color: #991b1b !important;
+                border: 1px solid #fca5a5 !important;
+                animation: none !important;
+                -webkit-print-color-adjust: exact;
+                print-color-adjust: exact;
+            }
+
+            /* ── Footer legenda ── */
+            .print-legend {
+                display: flex !important;
+                gap: 16px;
+                margin-top: 8px;
+                font-size: 8px;
+                color: #475569;
+            }
+
+            /* Hapus shadow/background panel di print */
+            .bg-white\/5,
+            .backdrop-blur-xl {
+                background: transparent !important;
+                backdrop-filter: none !important;
+                box-shadow: none !important;
+                border: none !important;
+            }
+
+            #bg-layer {
+                display: none !important;
+            }
+
+            body {
+                background: white !important;
+            }
+        }
+
+        /* Sembunyikan elemen print-only di layar biasa */
+        .print-header {
+            display: none;
+        }
+
+        .print-image-section {
+            display: none;
+        }
+
+        .print-table-title {
+            display: none;
+        }
+
+        .print-legend {
+            display: none;
+        }
+    </style>
+</head>
+
+<body class="animate-fade-in">
+    <div id="bg-layer"></div>
+
+    <!-- ══════════════════════════════════════════════════════════════════════
+         NAVBAR
+         ══════════════════════════════════════════════════════════════════ -->
+    <header class="navbar shadow-xl no-print">
+        <div class="max-w-screen-xl mx-auto px-6 py-4 flex items-center justify-between">
+
+            <!-- Logo kiri -->
+            <div class="flex items-center gap-3">
+                <div
+                    class="w-9 h-9 rounded-lg bg-blue-600 flex items-center justify-center shadow-lg shadow-blue-500/30">
+                    <svg class="w-5 h-5 text-white" fill="currentColor" viewBox="0 0 24 24">
+                        <path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4z" />
+                    </svg>
+                </div>
+                <div>
+                    <div class="text-slate-900 font-black text-lg tracking-widest">SAFEWATCH</div>
+                    <div class="text-blue-600 text-xs tracking-wider font-medium">Dashboard Laporan K3</div>
+                </div>
+            </div>
+
+            <!-- Tombol kanan -->
+            <div class="flex items-center gap-3">
+                <a href="/"
+                    class="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold px-4 py-2.5 rounded-xl tracking-wide transition-all hover:shadow-lg hover:shadow-blue-500/30">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+                    </svg>
+                    Analisis Baru
+                </a>
+            </div>
+        </div>
+    </header>
+
+    <!-- ══════════════════════════════════════════════════════════════════════
+         METADATA BAR — hanya AKTIVITAS
+         ══════════════════════════════════════════════════════════════════ -->
+    <div class="bg-white/80 backdrop-blur-md border-b border-blue-100 shadow-sm no-print">
+        <div class="max-w-screen-xl mx-auto px-6 py-3 flex items-center gap-3">
+            <span class="text-slate-400 text-s font-medium tracking-wide">AKTIVITAS:</span>
+            <span class="text-blue-600 text-s font-bold tracking-wide">{{ activity }}</span>
+        </div>
+    </div>
+
+    <!-- ══════════════════════════════════════════════════════════════════════
+         AREA PRINT
+         ══════════════════════════════════════════════════════════════════ -->
+    <div id="print-area">
+
+        <!-- ══ PRINT HEADER (hanya tampil saat cetak) ══ -->
+        <div class="print-header">
+            <div style="display:flex; justify-content:space-between; align-items:flex-start;">
+                <div>
+                    <h1 style="font-size:17px; font-weight:900; color:#0a1628; margin:0;">SAFEWATCH — Laporan Audit K3
+                    </h1>
+                    <p style="font-size:10px; color:#475569; margin:3px 0 0;">Sistem Deteksi APD Berbasis YOLOv11s ·
+                        PERMEN PUPR No. 10 Tahun 2021</p>
+                </div>
+                <div style="text-align:right; font-size:9.5px; color:#64748b; line-height:1.6;">
+                    <div><strong>Aktivitas K3:</strong> {{ activity }}</div>
+                    <div><strong>Orang Terdeteksi:</strong> {{ person_count }} orang</div>
+                    <div><strong>APD Terdeteksi:</strong> {% if detected_ppe %}{{ detected_ppe | join(', ') | title }}{%
+                        else %}—{% endif %}</div>
+                    <div><strong>APD Hilang:</strong> {% if missing_ppe %}{{ missing_ppe | join(', ') | title }}{% else
+                        %}Semua terpenuhi ✓{% endif %}</div>
+                    <div><strong>Model:</strong> YOLOv11s (conf={{ conf_threshold }})</div>
+                    <div id="print-date"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ══ GAMBAR DETEKSI YOLO (hanya tampil saat cetak) ══ -->
+        <!-- Sumber: static/results/ — gambar BERANOTASI bounding box dari YOLO -->
+        <div class="print-image-section">
+            <img src="{{ image_url }}" alt="Hasil Deteksi APD YOLOv11s">
+            <div class="print-image-caption">
+                Gambar Hasil Deteksi YOLO (Bounding Box) · Conf ≥ {{ conf_threshold }} · Aktivitas: {{ activity }}
+            </div>
+        </div>
+
+        <!-- ══ JUDUL TABEL (hanya tampil saat cetak) ══ -->
+        <div class="print-table-title">Tabel Laporan IBPRP — Identifikasi Bahaya & Penilaian Risiko</div>
+
+        <!-- ════════════════════════════════════════════════
+             KONTEN UTAMA DASHBOARD
+             ════════════════════════════════════════════════ -->
+        <div class="max-w-screen-xl mx-auto px-6 py-8">
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 items-start">
+
+                <!-- ══ PANEL KIRI — Bukti Visual ══ -->
+                <div class="panel-left no-print">
+                    <div class="flex items-center gap-3 mb-4">
+                        <div class="w-1 h-5 bg-blue-600 rounded-full"></div>
+                        <h2 class="text-slate-700 font-bold text-sm tracking-wide uppercase">Bukti Visual Deteksi</h2>
+                        <div class="flex-1 h-px bg-slate-200"></div>
+                    </div>
+
+                    <!-- ══ Panel Kiri: Gambar Hasil Deteksi YOLO ══
+                         Sumber: static/results/ (beranotasi bounding box)
+                         image_url dikirim dari route /dashboard → session['result']['image_url']
+                         Path: /static/results/result_<uuid>.jpg
+                    -->
+                    <div
+                        class="bg-white rounded-2xl shadow-sm overflow-hidden border border-slate-200 mb-4">
+                        <img id="result-image" src="{{ image_url }}"
+                            alt="Gambar hasil deteksi APD oleh YOLOv11s (bounding box)"
+                            class="w-full object-contain">
+                    </div>
+
+                    <!-- Badge baris bawah: APD Terdeteksi | APD Hilang | Orang Terdeteksi -->
+                    <div class="grid grid-cols-3 gap-3">
+
+                        <!-- Badge: APD Terdeteksi -->
+                        <div class="bg-blue-50 border border-blue-200 rounded-xl p-4">
+                            <div class="text-blue-600 text-xs font-bold tracking-wide uppercase mb-2 flex items-center gap-1.5">
+                                <svg class="w-3.5 h-3.5 flex-shrink-0" fill="currentColor" viewBox="0 0 24 24">
+                                    <path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                </svg>
+                                APD Terdeteksi
+                            </div>
+                            <div class="text-slate-700 font-semibold text-sm leading-snug">
+                                {% if detected_ppe %}
+                                {{ detected_ppe | join(', ') | title }}
+                                {% else %}
+                                <span class="text-slate-400 italic">Tidak ada</span>
+                                {% endif %}
+                            </div>
+                        </div>
+
+                        <!-- Badge: APD Hilang -->
+                        <div class="bg-red-50 border border-red-200 rounded-xl p-4">
+                            <div class="text-red-600 text-xs font-bold tracking-wide uppercase mb-2 flex items-center gap-1.5">
+                                <svg class="w-3.5 h-3.5 flex-shrink-0" fill="currentColor" viewBox="0 0 24 24">
+                                    <path d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                                </svg>
+                                APD Hilang
+                            </div>
+                            <div class="text-slate-700 font-semibold text-sm leading-snug">
+                                {% if missing_ppe %}
+                                {{ missing_ppe | join(', ') | title }}
+                                {% else %}
+                                <span class="text-emerald-600 font-bold">✓ Semua terpenuhi</span>
+                                {% endif %}
+                            </div>
+                        </div>
+
+                        <!-- Badge: Orang Terdeteksi -->
+                        <div class="bg-emerald-50 border border-emerald-200 rounded-xl p-4">
+                            <div class="text-emerald-600 text-xs font-bold tracking-wide uppercase mb-2 flex items-center gap-1.5">
+                                <svg class="w-3.5 h-3.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                        d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
+                                </svg>
+                                Orang Terdeteksi
+                            </div>
+                            <div class="flex items-baseline gap-2">
+                                <span class="text-emerald-900 font-black text-3xl leading-none">
+                                    {{ person_count if person_count is defined and person_count != None else 0 }}
+                                </span>
+                                <span class="text-emerald-700/70 font-semibold text-sm">orang</span>
+                            </div>
+                        </div>
+
+                    </div>
+                </div>
+                <!-- ── end panel kiri ── -->
+
+                <!-- ══ PANEL KANAN — Tabel IBPRP ══ -->
+                <div class="panel-right">
+                    <div class="flex items-center gap-3 mb-4 no-print">
+                        <div class="w-1 h-5 bg-blue-600 rounded-full"></div>
+                        <h2 class="text-slate-700 font-bold text-sm tracking-wide uppercase">Tabel Laporan IBPRP</h2>
+                        <div class="flex-1 h-px bg-slate-200"></div>
+                    </div>
+
+                    <div
+                        class="bg-white rounded-2xl shadow-sm overflow-hidden border border-slate-200">
+                        {% if ibprp_rows %}
+                        <div class="overflow-x-hidden w-full">
+                            <table class="report-table border-collapse">
+                                <colgroup>
+                                    <col class="col-no">
+                                    <col class="col-apd">
+                                    <col class="col-l">
+                                    <col class="col-s">
+                                    <col class="col-tr">
+                                    <col class="col-risk">
+                                    <col class="col-haz">
+                                </colgroup>
+                                <thead>
+                                    <tr>
+                                        <th class="text-center">No</th>
+                                        <th>APD Hilang</th>
+                                        <th class="text-center">L</th>
+                                        <th class="text-center">S</th>
+                                        <th class="text-center">TR</th>
+                                        <th class="text-center">Tingkat Risiko</th>
+                                        <th>Potensi Bahaya</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for row in ibprp_rows %}
+                                    <tr>
+                                        <td class="text-center font-bold text-slate-400 text-xs">{{ row.no }}</td>
+                                        <td>
+                                            <span
+                                                class="inline-flex items-center bg-red-100 text-red-700 font-bold text-xs px-2 py-1 rounded-full border border-red-200 whitespace-nowrap">
+                                                {{ row.ppe | title }}
+                                            </span>
+                                        </td>
+                                        <td class="text-center"><span class="font-black text-slate-800 text-base">{{ row.L }}</span></td>
+                                        <td class="text-center"><span class="font-black text-slate-800 text-base">{{ row.S }}</span></td>
+                                        <td class="text-center">
+                                            <span
+                                                class="font-black text-lg {% if row.risk_level == 'Besar' %}text-red-600{% elif row.risk_level == 'Sedang' %}text-orange-500{% else %}text-green-600{% endif %}">
+                                                {{ row.TR }}
+                                            </span>
+                                        </td>
+                                        <td class="text-center col-risk-cell">
+                                            <span
+                                                class="inline-block px-2 py-1 rounded-lg text-xs font-black tracking-wide whitespace-nowrap {% if row.risk_level == 'Besar' %}badge-besar{% elif row.risk_level == 'Sedang' %}badge-sedang{% else %}badge-kecil{% endif %}">
+                                                {{ row.risk_level }}
+                                            </span>
+                                        </td>
+                                        <td class="text-slate-500 text-xs leading-relaxed">{{ row.hazard }}</td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+
+                        <!-- Footer legenda tabel -->
+                        <div class="px-5 py-4 bg-slate-50 border-t border-slate-100">
+                            <div class="flex flex-wrap gap-3 mb-2">
+                                <div class="flex items-center gap-1.5">
+                                    <div class="w-3 h-3 rounded bg-green-600"></div><span
+                                        class="text-xs text-slate-500">Kecil (TR 1–4)</span>
+                                </div>
+                                <div class="flex items-center gap-1.5">
+                                    <div class="w-3 h-3 rounded bg-orange-500"></div><span
+                                        class="text-xs text-slate-500">Sedang (TR 5–12)</span>
+                                </div>
+                                <div class="flex items-center gap-1.5">
+                                    <div class="w-3 h-3 rounded bg-red-600"></div><span
+                                        class="text-xs text-slate-500">Besar (TR 15–25)</span>
+                                </div>
+                            </div>
+                            <p class="text-slate-400 text-xs">Rumus: <strong class="text-slate-600">TR = L (Likelihood) ×
+                                    S (Severity)</strong> · PERMEN PUPR No. 10 Tahun 2021</p>
+                        </div>
+
+                        {% else %}
+                        <div class="px-6 py-16 text-center">
+                            <div
+                                class="w-20 h-20 rounded-full bg-blue-500/20 flex items-center justify-center mx-auto mb-5">
+                                <svg class="w-10 h-10 text-blue-400" fill="currentColor" viewBox="0 0 24 24">
+                                    <path
+                                        d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+                                </svg>
+                            </div>
+                            <h3 class="text-slate-800 font-black text-xl mb-2">Semua APD Terpenuhi!</h3>
+                            <p class="text-slate-500 text-sm max-w-xs mx-auto leading-relaxed">Tidak ada pelanggaran APD
+                                yang terdeteksi untuk aktivitas <strong>{{ activity }}</strong>. Kepatuhan K3 terpantau
+                                baik.</p>
+                            <div
+                                class="mt-4 inline-block bg-blue-500/20 text-blue-300 font-semibold text-xs px-4 py-2 rounded-full border border-blue-500/30">
+                                Tingkat Risiko: KECIL / TIDAK ADA</div>
+                        </div>
+                        {% endif %}
+                    </div>
+
+                    <!-- Tombol cetak di bawah tabel -->
+                    <div class="mt-5 no-print">
+                        <button onclick="window.print()"
+                            class="w-full flex items-center justify-center gap-2 bg-slate-100 hover:bg-slate-200 border border-slate-300 text-slate-700 text-sm font-semibold py-3.5 px-5 rounded-xl transition-all hover:shadow-md">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+                            </svg>
+                            Cetak / Unduh Laporan PDF
+                        </button>
+                    </div>
+                </div>
+                <!-- ── end panel kanan ── -->
+
+            </div>
+        </div>
+
+        <!-- ══ LEGENDA PRINT (hanya tampil saat cetak, di bawah tabel) ══ -->
+        <div class="print-legend">
+            <span>■ Kecil (TR 1–4)</span>
+            <span>■ Sedang (TR 5–12)</span>
+            <span>■ Besar (TR 15–25)</span>
+            <span style="margin-left:auto;">TR = L (Likelihood) × S (Severity) · PERMEN PUPR No. 10 Tahun 2021</span>
+        </div>
+
+    </div><!-- end #print-area -->
+
+    <footer class="bg-transparent text-slate-400 text-xs text-center py-5 mt-4 no-print border-t border-slate-200">
+        <p>SAFEWATCH · Sistem Deteksi APD K3 Berbasis YOLOv11s · PERMEN PUPR No. 10 Tahun 2021</p>
+    </footer>
+
+    <script>
+        const printDateEl = document.getElementById('print-date');
+        if (printDateEl) {
+            const now = new Date();
+            printDateEl.textContent = 'Tanggal: ' + now.toLocaleDateString('id-ID', {
+                day: 'numeric', month: 'long', year: 'numeric',
+            }) + ', ' + now.toLocaleTimeString('id-ID', {
+                hour: '2-digit', minute: '2-digit',
+            }) + ' WIB';
+        }
+    </script>
+</body>
+
+</html>

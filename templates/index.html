@@ -1,0 +1,995 @@
+<!DOCTYPE html>
+<html lang="id">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description"
+        content="SAFEWATCH — Sistem Deteksi APD K3 Berbasis YOLOv11s untuk Audit Keselamatan Konstruksi">
+    <title>SAFEWATCH — Sistem Deteksi APD K3</title>
+
+    <!-- Font Inter dari Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap"
+        rel="stylesheet">
+
+    <!-- Tailwind CSS via CDN — konsisten dengan dashboard.html -->
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <!-- SweetAlert2 — untuk popup notifikasi error validasi foto -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.all.min.js"></script>
+
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: { sans: ['Inter', 'sans-serif'] },
+                }
+            }
+        }
+    </script>
+
+    <style>
+        /* ── Reset ──────────────────────────────────────────────────── */
+        *,
+        *::before,
+        *::after {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        html,
+        body {
+            height: 100%;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            font-size: 15px;
+            line-height: 1.6;
+            color: #1e293b;
+            background: transparent;
+        }
+
+        /* ── Background putih-biru lembut ────────────────────────────── */
+        #bg-layer {
+            position: fixed;
+            inset: 0;
+            z-index: -1;
+            background: linear-gradient(140deg, #f0f4ff 0%, #e8eefb 50%, #f5f7ff 100%);
+        }
+
+        #bg-layer::after {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background-image: radial-gradient(rgba(59, 130, 246, 0.07) 1px, transparent 1px);
+            background-size: 28px 28px;
+        }
+
+        /* ── Navbar ─────────────────────────────────────────────────── */
+        .navbar {
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            background: rgba(255, 255, 255, 0.88);
+            backdrop-filter: blur(18px);
+            -webkit-backdrop-filter: blur(18px);
+            border-bottom: 1px solid rgba(59, 130, 246, 0.15);
+            box-shadow: 0 1px 16px rgba(30, 64, 175, 0.07);
+        }
+
+        .navbar-inner {
+            max-width: 1100px;
+            margin: 0 auto;
+            padding: 14px 28px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        /* ── Logo ikon biru ─────────────────────────────────────────── */
+        .logo-icon {
+            width: 38px;
+            height: 38px;
+            background: #3b82f6;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 4px 14px rgba(59, 130, 246, 0.45);
+            flex-shrink: 0;
+        }
+
+        .logo-icon svg {
+            width: 20px;
+            height: 20px;
+            fill: #ffffff;
+        }
+
+        .logo-name {
+            font-size: 1.05rem;
+            font-weight: 900;
+            color: #1e293b;
+            letter-spacing: 0.16em;
+            line-height: 1.1;
+        }
+
+        /* ── Sub-teks logo: biru ────────────────────────────────────── */
+        .logo-sub {
+            font-size: 0.68rem;
+            font-weight: 600;
+            color: #3b82f6;
+            letter-spacing: 0.1em;
+            margin-top: 2px;
+        }
+
+        .model-badge {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            background: rgba(59, 130, 246, 0.08);
+            border: 1px solid rgba(59, 130, 246, 0.2);
+            border-radius: 99px;
+            padding: 8px 16px;
+        }
+
+        .model-badge-text {
+            color: #2563eb;
+            font-size: 0.7rem;
+            font-weight: 700;
+            letter-spacing: 0.08em;
+        }
+
+        /* ── Titik biru berkedip ─────────────────────────────────────── */
+        .pulse-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #3b82f6;
+            flex-shrink: 0;
+            animation: pulseDot 2s ease-in-out infinite;
+        }
+
+        @keyframes pulseDot {
+
+            0%,
+            100% {
+                opacity: 1;
+                transform: scale(1);
+            }
+
+            50% {
+                opacity: 0.4;
+                transform: scale(0.78);
+            }
+        }
+
+        /* ── Hero ───────────────────────────────────────────────────── */
+        .hero {
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 60px 28px 32px;
+            text-align: center;
+        }
+
+        /* ── Badge regulasi: aksen biru ─────────────────────────────── */
+        .hero-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            background: rgba(59, 130, 246, 0.12);
+            border: 1px solid rgba(59, 130, 246, 0.3);
+            border-radius: 99px;
+            padding: 7px 18px;
+            margin-bottom: 28px;
+        }
+
+        .hero-badge svg {
+            width: 14px;
+            height: 14px;
+            fill: #2563eb;
+            flex-shrink: 0;
+        }
+
+        .hero-badge-text {
+            color: #1d4ed8;
+            font-size: 0.68rem;
+            font-weight: 700;
+            letter-spacing: 0.12em;
+            text-transform: uppercase;
+        }
+
+        .hero-title {
+            font-size: clamp(1.9rem, 5vw, 3rem);
+            font-weight: 900;
+            color: #0f172a;
+            line-height: 1.15;
+            letter-spacing: -0.02em;
+            margin-bottom: 16px;
+        }
+
+        /* ── Aksen judul: biru ───────────────────────────────────────── */
+        .hero-title-accent {
+            color: #2563eb;
+        }
+
+        .hero-desc {
+            font-size: 0.9rem;
+            color: #64748b;
+            max-width: 460px;
+            margin: 0 auto;
+            line-height: 1.75;
+        }
+
+        /* ── Card putih bersih dengan shadow ─────────────────────────── */
+        .glass-card {
+            background: #ffffff;
+            backdrop-filter: none;
+            border: 1px solid #e2e8f0;
+            border-radius: 18px;
+            box-shadow: 0 4px 32px rgba(30, 64, 175, 0.08), 0 1px 4px rgba(0,0,0,0.04);
+        }
+
+        .card-header {
+            padding: 16px 24px;
+            border-bottom: 1px solid #f1f5f9;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        /* ── Ikon header card: biru ──────────────────────────────────── */
+        .card-header-icon {
+            width: 28px;
+            height: 28px;
+            background: rgba(59, 130, 246, 0.12);
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+        }
+
+        .card-header-icon svg {
+            width: 15px;
+            height: 15px;
+            stroke: #2563eb;
+            fill: none;
+            stroke-width: 2;
+        }
+
+        .card-header-title {
+            color: #475569;
+            font-size: 0.78rem;
+            font-weight: 700;
+            letter-spacing: 0.1em;
+            text-transform: uppercase;
+        }
+
+        .card-body {
+            padding: 24px;
+        }
+
+        /* ── Form elements ───────────────────────────────────────────── */
+        .form-group {
+            margin-bottom: 22px;
+        }
+
+        .form-label {
+            display: block;
+            color: #64748b;
+            font-size: 0.7rem;
+            font-weight: 700;
+            letter-spacing: 0.12em;
+            text-transform: uppercase;
+            margin-bottom: 9px;
+        }
+
+        .select-wrapper {
+            position: relative;
+        }
+
+        .activity-select {
+            width: 100%;
+            background: #f8fafc;
+            border: 1px solid #cbd5e1;
+            color: #1e293b;
+            border-radius: 12px;
+            padding: 14px 44px 14px 16px;
+            font-size: 0.875rem;
+            font-weight: 500;
+            font-family: 'Inter', sans-serif;
+            appearance: none;
+            -webkit-appearance: none;
+            cursor: pointer;
+            outline: none;
+            transition: border-color 0.2s, box-shadow 0.2s;
+        }
+
+        /* ── Focus dropdown: biru ────────────────────────────────────── */
+        .activity-select:focus {
+            border-color: #3b82f6;
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
+            background: #ffffff;
+        }
+
+        .activity-select option {
+            background: #ffffff;
+            color: #1e293b;
+        }
+
+        .select-arrow {
+            position: absolute;
+            right: 14px;
+            top: 50%;
+            transform: translateY(-50%);
+            pointer-events: none;
+        }
+
+        .select-arrow svg {
+            width: 16px;
+            height: 16px;
+            stroke: #94a3b8;
+            fill: none;
+            stroke-width: 2;
+        }
+
+        /* ── Drop zone ───────────────────────────────────────────────── */
+        .drop-zone {
+            border: 2px dashed #cbd5e1;
+            border-radius: 14px;
+            padding: 38px 24px;
+            text-align: center;
+            cursor: pointer;
+            transition: border-color 0.25s, background 0.25s;
+            user-select: none;
+            background: #f8fafc;
+        }
+
+        /* ── Hover drop zone: biru ───────────────────────────────────── */
+        .drop-zone:hover {
+            border-color: #60a5fa;
+            background: rgba(59, 130, 246, 0.04);
+        }
+
+        .drop-zone.drag-over {
+            border-color: #3b82f6;
+            background: rgba(59, 130, 246, 0.1);
+        }
+
+        .dz-icon-wrap {
+            width: 58px;
+            height: 58px;
+            background: rgba(59, 130, 246, 0.1);
+            border: 1px solid rgba(59, 130, 246, 0.2);
+            border-radius: 14px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 14px;
+        }
+
+        /* ── Ikon upload: biru muda ──────────────────────────────────── */
+        .dz-icon-wrap svg {
+            width: 28px;
+            height: 28px;
+            stroke: #60a5fa;
+            fill: none;
+            stroke-width: 1.5;
+        }
+
+        .dz-title {
+            color: #1e293b;
+            font-weight: 600;
+            font-size: 0.9rem;
+            margin-bottom: 4px;
+        }
+
+        .dz-sub {
+            color: #94a3b8;
+            font-size: 0.75rem;
+        }
+
+        .preview-wrap {
+            display: none;
+            margin-top: 12px;
+            border-radius: 12px;
+            overflow: hidden;
+            border: 1px solid #bfdbfe;
+            position: relative;
+            background: #f0f9ff;
+        }
+
+        .preview-img {
+            width: 100%;
+            max-height: 240px;
+            object-fit: contain;
+            display: block;
+        }
+
+        /* ── Badge preview: biru ─────────────────────────────────────── */
+        .preview-badge {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            background: #3b82f6;
+            color: #ffffff;
+            font-size: 0.62rem;
+            font-weight: 800;
+            letter-spacing: 0.1em;
+            padding: 3px 10px;
+            border-radius: 99px;
+        }
+
+        .remove-btn {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            width: 26px;
+            height: 26px;
+            background: rgba(239, 68, 68, 0.85);
+            border: none;
+            border-radius: 50%;
+            color: #ffffff;
+            font-size: 1rem;
+            font-weight: 700;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            line-height: 1;
+            transition: background 0.2s;
+        }
+
+        .remove-btn:hover {
+            background: #ef4444;
+        }
+
+        /* ── Tombol submit utama: BIRU ───────────────────────────────── */
+        .analyze-btn {
+            width: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            padding: 16px 24px;
+            background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+            color: #ffffff;
+            font-size: 0.9rem;
+            font-weight: 700;
+            font-family: 'Inter', sans-serif;
+            letter-spacing: 0.02em;
+            border: none;
+            border-radius: 12px;
+            cursor: pointer;
+            box-shadow: 0 4px 20px rgba(59, 130, 246, 0.35);
+            transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .analyze-btn:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 30px rgba(59, 130, 246, 0.5);
+        }
+
+        .analyze-btn:active:not(:disabled) {
+            transform: translateY(0);
+        }
+
+        .analyze-btn:disabled {
+            opacity: 0.42;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: 0 2px 8px rgba(59, 130, 246, 0.15);
+        }
+
+        .analyze-btn svg {
+            width: 18px;
+            height: 18px;
+            stroke: #ffffff;
+            fill: none;
+            stroke-width: 2;
+        }
+
+        .spinner {
+            width: 20px;
+            height: 20px;
+            border: 2.5px solid rgba(255, 255, 255, 0.3);
+            border-top-color: #ffffff;
+            border-radius: 50%;
+            animation: spin 0.7s linear infinite;
+            display: inline-block;
+        }
+
+        @keyframes spin {
+            to {
+                transform: rotate(360deg);
+            }
+        }
+
+        /* ── Metric cards ────────────────────────────────────────────── */
+        .metric-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 12px;
+            margin-top: 20px;
+        }
+
+        .metric-card {
+            background: #ffffff;
+            border: 1px solid #e2e8f0;
+            border-radius: 12px;
+            padding: 16px;
+            text-align: center;
+            box-shadow: 0 2px 8px rgba(30, 64, 175, 0.05);
+        }
+
+        /* ── Nilai metrik: biru ──────────────────────────────────────── */
+        .metric-value {
+            color: #2563eb;
+            font-weight: 900;
+            font-size: 1.25rem;
+            line-height: 1;
+        }
+
+        .metric-label {
+            color: #94a3b8;
+            font-size: 0.68rem;
+            margin-top: 5px;
+        }
+
+        /* ── Error alert ─────────────────────────────────────────────── */
+        .error-alert {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            background: #fef2f2;
+            border: 1px solid #fecaca;
+            border-radius: 12px;
+            padding: 13px 17px;
+            margin-bottom: 20px;
+            color: #dc2626;
+            font-size: 0.84rem;
+        }
+
+        .error-alert svg {
+            width: 18px;
+            height: 18px;
+            fill: #ef4444;
+            flex-shrink: 0;
+        }
+
+        /* ── Animasi fade-up ─────────────────────────────────────────── */
+        .fade-up {
+            animation: fadeUp 0.5s ease-out both;
+        }
+
+        @keyframes fadeUp {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        /* ── Layout container ────────────────────────────────────────── */
+        .container {
+            max-width: 620px;
+            margin: 0 auto;
+            padding: 0 24px 80px;
+        }
+
+        /* ── Footer ──────────────────────────────────────────────────── */
+        .page-footer {
+            text-align: center;
+            padding: 20px;
+            color: #94a3b8;
+            font-size: 0.72rem;
+            border-top: 1px solid #e2e8f0;
+            margin-top: 40px;
+        }
+    </style>
+</head>
+
+<body>
+
+    <!-- Layer background putih-biru lembut (fixed) -->
+    <div id="bg-layer"></div>
+
+    <!-- ══════════════════════════════════════════════════════════════════════
+         NAVBAR — sticky, glass effect
+         ══════════════════════════════════════════════════════════════════ -->
+    <header class="navbar">
+        <div class="navbar-inner">
+
+            <!-- Logo kiri -->
+            <div class="logo">
+                <div class="logo-icon">
+                    <!-- Ikon perisai — simbol perlindungan K3 -->
+                    <svg viewBox="0 0 24 24">
+                        <path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4z" />
+                    </svg>
+                </div>
+                <div>
+                    <div class="logo-name">SAFEWATCH</div>
+                    <div class="logo-sub">Sistem Deteksi APD K3</div>
+                </div>
+            </div>
+
+            <!-- Badge status model di kanan -->
+            <div class="model-badge">
+                <div class="pulse-dot"></div>
+                <span class="model-badge-text">YOLOv11s · IBPRP</span>
+            </div>
+
+        </div>
+    </header>
+
+    <!-- ══════════════════════════════════════════════════════════════════════
+         HERO SECTION
+         ══════════════════════════════════════════════════════════════════ -->
+    <section class="hero fade-up">
+
+        <!-- Badge regulasi acuan -->
+        <div class="hero-badge">
+            <svg viewBox="0 0 24 24">
+                <path d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955
+                         0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622
+                         5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+            </svg>
+            <span class="hero-badge-text">PERMEN PUPR No. 10 Tahun 2021 · IBPRP</span>
+        </div>
+
+        <!-- H1 tunggal (SEO: satu H1 per halaman) -->
+        <h1 class="hero-title">
+            Analisis Risiko APD<br>
+            <span class="hero-title-accent">Konstruksi Berbasis AI</span>
+        </h1>
+
+        <p class="hero-desc">
+            Unggah foto lapangan dan pilih aktivitas K3 untuk mendapatkan
+            laporan IBPRP otomatis berbasis YOLOv11s dan regulasi K3 nasional.
+        </p>
+
+    </section>
+
+    <!-- ══════════════════════════════════════════════════════════════════════
+         FORM UPLOAD UTAMA
+         ══════════════════════════════════════════════════════════════════ -->
+    <main class="container fade-up" style="animation-delay:0.1s;">
+
+        <!-- Pesan error dari Flask (jika ada) -->
+        {% if error_message %}
+        <div class="error-alert">
+            <svg viewBox="0 0 24 24">
+                <path d="M12 22C6.477 22 2 17.523 2 12S6.477 2 12 2s10 4.477 10
+                         10-4.477 10-10 10zm-1-7v2h2v-2h-2zm0-8v6h2V7h-2z" />
+            </svg>
+            {{ error_message }}
+        </div>
+        {% endif %}
+
+        <!-- Card utama glassmorphism -->
+        <div class="glass-card">
+
+            <!-- Header card -->
+            <div class="card-header">
+                <div class="card-header-icon">
+                    <svg viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2
+                                 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2
+                                 a2 2 0 012 2" />
+                    </svg>
+                </div>
+                <span class="card-header-title">Form Analisis K3</span>
+            </div>
+
+            <!-- Body form -->
+            <div class="card-body">
+
+                <!--
+                    Form dikirim ke Flask route /predict via POST multipart.
+                    Wajib enctype="multipart/form-data" agar file gambar terkirim.
+                -->
+                <form id="upload-form" action="/predict" method="POST" enctype="multipart/form-data">
+
+                    <!-- ── BAGIAN 1: Dropdown Pilih Aktivitas K3 ──────── -->
+                    <div class="form-group">
+                        <label class="form-label" for="activity-select">
+                            ① Pilih Aktivitas K3
+                        </label>
+
+                        <div class="select-wrapper">
+                            <!--
+                                Opsi dropdown diisi dari Flask/Jinja2 loop.
+                                Variabel 'activities' dikirim dari route index()
+                                yang memanggil config.get_activity_names().
+                            -->
+                            <select id="activity-select" name="activity" class="activity-select" required>
+                                <option value="" disabled selected>
+                                    — Pilih jenis pekerjaan K3 —
+                                </option>
+                                {% for act in activities %}
+                                <option value="{{ act }}">{{ act }}</option>
+                                {% endfor %}
+                            </select>
+
+                            <!-- Ikon panah kustom (CSS only) -->
+                            <div class="select-arrow">
+                                <svg viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
+                                </svg>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- ── BAGIAN 2: Drop Zone Upload Foto ───────────── -->
+                    <div class="form-group">
+                        <label class="form-label">② Unggah Foto Lapangan</label>
+
+                        <!--
+                            Area drag-and-drop:
+                            - Klik → buka dialog file
+                            - Drag file → otomatis assign ke input file tersembunyi
+                        -->
+                        <div id="drop-zone" class="drop-zone" onclick="document.getElementById('file-input').click()">
+
+                            <!-- Ikon cloud upload -->
+                            <div class="dz-icon-wrap">
+                                <svg viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6
+                                             a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                                </svg>
+                            </div>
+
+                            <p class="dz-title" id="dz-title">Tarik &amp; Lepas foto di sini</p>
+                            <p class="dz-sub" id="dz-sub">
+                                atau klik untuk memilih file · JPG, PNG · maks. 16 MB
+                            </p>
+
+                            <!-- Input file tersembunyi -->
+                            <input id="file-input" type="file" name="file"
+                                accept="image/jpeg,image/png,image/jpg,image/webp" style="display:none;" required>
+                        </div>
+
+                        <!-- Preview gambar — tersembunyi default -->
+                        <div id="preview-wrap" class="preview-wrap">
+                            <img id="image-preview" class="preview-img" src="#" alt="Preview foto yang diunggah">
+                            <span class="preview-badge">PREVIEW</span>
+                            <button type="button" class="remove-btn" onclick="removeFile()">×</button>
+                        </div>
+                    </div>
+
+                    <!-- ── BAGIAN 3: Tombol Submit ────────────────────── -->
+                    <!--
+                        Tombol hanya aktif jika file gambar DAN aktivitas sudah dipilih.
+                        Cek dilakukan oleh fungsi checkFormReady() di bawah.
+                    -->
+                    <button type="submit" id="analyze-btn" class="analyze-btn" disabled>
+                        <span id="btn-icon">
+                            <svg viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0
+                                         002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2
+                                         0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                            </svg>
+                        </span>
+                        <span id="btn-text">Mulai Analisis Risiko K3</span>
+                    </button>
+
+                </form>
+
+            </div><!-- end card-body -->
+        </div><!-- end glass-card -->
+
+        <!-- Tiga metrik model di bawah card -->
+        <div class="metric-grid">
+            <div class="metric-card">
+                <div class="metric-value">0.327</div>
+                <div class="metric-label">Conf. Threshold</div>
+            </div>
+            <div class="metric-card">
+                <div class="metric-value">5</div>
+                <div class="metric-label">Kelas APD</div>
+            </div>
+            <div class="metric-card">
+                <div class="metric-value">640²</div>
+                <div class="metric-label">Input Resolusi</div>
+            </div>
+        </div>
+
+    </main>
+
+    <footer class="page-footer">
+        SAFEWATCH · Sistem Deteksi APD K3 Berbasis YOLOv11s · PERMEN PUPR No. 10 Tahun 2021
+    </footer>
+
+    <!-- ══════════════════════════════════════════════════════════════════════
+         JAVASCRIPT — Interaktivitas form, drag-drop, validasi
+         ══════════════════════════════════════════════════════════════════ -->
+    <script>
+        // Referensi elemen DOM
+        const dropZone = document.getElementById('drop-zone');
+        const fileInput = document.getElementById('file-input');
+        const previewWrap = document.getElementById('preview-wrap');
+        const previewImg = document.getElementById('image-preview');
+        const analyzeBtn = document.getElementById('analyze-btn');
+        const btnText = document.getElementById('btn-text');
+        const btnIcon = document.getElementById('btn-icon');
+        const dzTitle = document.getElementById('dz-title');
+        const dzSub = document.getElementById('dz-sub');
+        const actSelect = document.getElementById('activity-select');
+
+        // Cek apakah form siap untuk disubmit
+        function checkFormReady() {
+            const hasFile = fileInput.files && fileInput.files.length > 0;
+            const hasActivity = actSelect.value !== '';
+            analyzeBtn.disabled = !(hasFile && hasActivity);
+        }
+
+        // Tampilkan preview gambar
+        function showPreview(file) {
+            if (!file.type.startsWith('image/')) {
+                alert('File harus berupa gambar (JPG, PNG, atau WebP).');
+                return;
+            }
+            const reader = new FileReader();
+            reader.onload = function (e) {
+                previewImg.src = e.target.result;
+                previewWrap.style.display = 'block';
+                dzTitle.textContent = '✓ ' + file.name;
+                dzSub.textContent = (file.size / 1024).toFixed(0) + ' KB — Siap dianalisis';
+            };
+            reader.readAsDataURL(file);
+            checkFormReady();
+        }
+
+        // Hapus file yang dipilih dan reset tampilan
+        function removeFile() {
+            fileInput.value = '';
+            previewWrap.style.display = 'none';
+            previewImg.src = '#';
+            dzTitle.textContent = 'Tarik & Lepas foto di sini';
+            dzSub.textContent = 'atau klik untuk memilih file · JPG, PNG · maks. 16 MB';
+            checkFormReady();
+        }
+
+        // Event: file dipilih via dialog browser
+        fileInput.addEventListener('change', function () {
+            if (this.files && this.files[0]) showPreview(this.files[0]);
+        });
+
+        // Event: aktivitas K3 dipilih dari dropdown
+        actSelect.addEventListener('change', checkFormReady);
+
+        // Events drag-and-drop
+        dropZone.addEventListener('dragover', function (e) {
+            e.preventDefault();
+            this.classList.add('drag-over');
+        });
+        dropZone.addEventListener('dragleave', function () {
+            this.classList.remove('drag-over');
+        });
+        dropZone.addEventListener('drop', function (e) {
+            e.preventDefault();
+            this.classList.remove('drag-over');
+            const files = e.dataTransfer.files;
+            if (files && files[0]) {
+                const dt = new DataTransfer();
+                dt.items.add(files[0]);
+                fileInput.files = dt.files;
+                showPreview(files[0]);
+            }
+        });
+
+        // ================================================================
+        // EVENT SUBMIT FORM — Fetch API dengan penanganan error JSON 400
+        // ================================================================
+        
+        document.getElementById('upload-form').addEventListener('submit', async function (e) {
+            e.preventDefault();  // Cegah submit HTML biasa — kita handle via fetch
+
+            // ── Tampilkan loading state pada tombol ───────────────────────
+            analyzeBtn.disabled = true;
+            btnText.textContent  = 'Memproses analisis...';
+            btnIcon.innerHTML    = '<span class="spinner"></span>';
+
+            // ── Kemas data form ke FormData (mendukung file upload) ───────
+            const formData = new FormData(this);
+
+            try {
+                // ── Kirim request ke endpoint /predict ────────────────────
+                const response = await fetch('/predict', {
+                    method: 'POST',
+                    body:   formData,
+                });
+
+                if (response.ok) {
+                    window.location.href = response.url;
+                    return;
+                }
+
+                // ── ERROR dari server: coba parse JSON untuk pesan detail ──
+                let errorMsg = 'Terjadi kesalahan pada server. Silakan coba lagi.';
+                try {
+                    const data = await response.json();
+                    if (data && data.message) {
+                        errorMsg = data.message;
+                    }
+                } catch (_) {
+                }
+
+                // ── Tentukan ikon & judul berdasarkan jenis error ─────────
+                const isValidationError = (response.status === 400);
+                const alertTitle  = isValidationError ? 'Foto Ditolak' : 'Terjadi Kesalahan';
+                const alertIcon   = isValidationError ? 'warning' : 'error';
+                const alertColor  = isValidationError ? '#f59e0b' : '#ef4444'; // amber / red
+
+                // ── Tampilkan SweetAlert2 dengan tema navy SAFEWATCH ──────
+                await Swal.fire({
+                    title:              alertTitle,
+                    text:               errorMsg,
+                    icon:               alertIcon,
+                    confirmButtonText:  'Oke, Ganti Foto',
+                    confirmButtonColor: alertColor,
+
+                    background:         '#ffffff',
+                    color:              '#1e293b',
+
+                    customClass: {
+                        popup:          'swal-safewatch-popup',
+                        title:          'swal-safewatch-title',
+                        htmlContainer:  'swal-safewatch-text',
+                        confirmButton:  'swal-safewatch-btn',
+                    },
+
+                    showClass:  { popup: 'animate__animated animate__fadeInDown animate__faster' },
+                    hideClass:  { popup: 'animate__animated animate__fadeOutUp animate__faster'  },
+                });
+
+                // ── Reset tombol ──────────────────────────────────────────
+                analyzeBtn.disabled = false;
+                btnText.textContent  = 'Mulai Analisis Risiko K3';
+                btnIcon.innerHTML    = `<svg viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round"
+                          d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0
+                             002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2
+                             0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                </svg>`;
+
+            } catch (networkErr) {
+                console.error('[SAFEWATCH] Network error:', networkErr);
+
+                await Swal.fire({
+                    title:              'Koneksi Bermasalah',
+                    text:               'Tidak dapat terhubung ke server. Periksa koneksi jaringan Anda.',
+                    icon:               'error',
+                    confirmButtonText:  'Oke',
+                    confirmButtonColor: '#ef4444',
+                    background:         '#ffffff',
+                    color:              '#1e293b',
+                });
+
+                analyzeBtn.disabled = false;
+                btnText.textContent  = 'Mulai Analisis Risiko K3';
+            }
+        });
+    </script>
+
+</body>
+
+</html>
