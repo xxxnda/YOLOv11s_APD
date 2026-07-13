@@ -224,35 +224,26 @@ def predict():
     except RuntimeError as exc:
         # Model tidak tersedia — file best.pt mungkin belum ada
         logger.error(f"[ERR] RuntimeError saat deteksi: {exc}")
-        return render_template(
-            "index.html",
-            activities      = get_activity_names(),
-            model_available = False,
-            ppe_classes     = PPE_CLASSES,
-            error_message   = str(exc),
-        )
+        return jsonify({
+            "status": "error",
+            "message": f"Model error: {str(exc)}"
+        }), 500
 
     except ValueError as exc:
         # File gambar tidak dapat dibaca oleh OpenCV
         logger.error(f"[ERR] ValueError saat deteksi: {exc}")
-        return render_template(
-            "index.html",
-            activities      = get_activity_names(),
-            model_available = is_model_available(),
-            ppe_classes     = PPE_CLASSES,
-            error_message   = f"File gambar tidak valid: {str(exc)}",
-        )
+        return jsonify({
+            "status": "error",
+            "message": f"File gambar tidak valid: {str(exc)}"
+        }), 400
 
     except Exception as exc:
         # Error tak terduga lainnya
         logger.error(f"[ERR] Deteksi gagal: {exc}", exc_info=True)
-        return render_template(
-            "index.html",
-            activities      = get_activity_names(),
-            model_available = is_model_available(),
-            ppe_classes     = PPE_CLASSES,
-            error_message   = f"Terjadi kesalahan sistem: {str(exc)}",
-        )
+        return jsonify({
+            "status": "error",
+            "message": f"Terjadi kesalahan sistem: {str(exc)}"
+        }), 500
 
     finally:
         # Hapus file upload ASLI — hanya gambar beranotasi yang perlu disimpan
