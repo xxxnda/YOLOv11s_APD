@@ -32,6 +32,19 @@ import logging
 import cv2
 import numpy as np
 
+# ── Patch cv2 untuk environment headless (Railway, Docker tanpa display) ────
+# opencv-python-headless menghapus fungsi GUI seperti imshow(), waitKey(), dll.
+# Ultralytics YOLO kadang memanggil fungsi-fungsi ini saat inisialisasi model,
+# sehingga perlu di-patch dengan fungsi dummy agar tidak crash di server.
+if not hasattr(cv2, "imshow"):
+    cv2.imshow          = lambda *a, **kw: None
+    cv2.waitKey         = lambda *a, **kw: -1
+    cv2.destroyAllWindows = lambda *a, **kw: None
+    cv2.destroyWindow   = lambda *a, **kw: None
+    cv2.namedWindow     = lambda *a, **kw: None
+    cv2.moveWindow      = lambda *a, **kw: None
+    cv2.resizeWindow    = lambda *a, **kw: None
+
 # Import konfigurasi terpusat — satu-satunya dependensi eksternal modul ini
 from config import (
     MODEL_PATH,            # Path ke file bobot best.pt hasil training
