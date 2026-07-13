@@ -61,6 +61,8 @@ logger = logging.getLogger(__name__)
 # ============================================================================
 
 _model = None   # Variabel privat (konvensi: prefix underscore = internal use)
+_load_error = None # Simpan error loading model
+
 
 
 def _load_model_once() -> object:
@@ -100,14 +102,17 @@ def _load_model_once() -> object:
         logger.info("[INIT] ✓ Model YOLOv11s berhasil dimuat dan siap digunakan.")
 
     except FileNotFoundError as exc:
+        _load_error = str(exc)
         logger.error(f"[MODEL ERROR] {exc}")
     except ImportError:
+        _load_error = "Library 'ultralytics' tidak terinstalasi."
         logger.error(
             "[MODEL ERROR] Library 'ultralytics' tidak terinstalasi. "
             "Jalankan: pip install ultralytics"
         )
     except Exception as exc:
-        logger.error(f"[MODEL ERROR] Gagal memuat YOLOv11s: {exc}")
+        _load_error = f"Gagal memuat YOLOv11s: {str(exc)}"
+        logger.error(f"[MODEL ERROR] {_load_error}")
 
     return _model
 
@@ -159,10 +164,10 @@ class YOLODetector:
         model = _load_model_once()
 
         if model is None:
+            err_msg = _load_error if _load_error else "Alasan tidak diketahui."
             raise RuntimeError(
-                "Model YOLOv11s tidak tersedia. "
-                "Pastikan file 'models/best.pt' sudah ada dan valid.\n"
-                "Jalankan training terlebih dahulu atau salin file bobot yang sesuai."
+                f"Model YOLOv11s tidak tersedia.\nError asli: {err_msg}\n"
+                f"Pastikan file '{MODEL_PATH}' sudah ada dan valid."
             )
 
         self._model = model
