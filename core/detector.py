@@ -33,17 +33,70 @@ import cv2
 import numpy as np
 
 # ── Patch cv2 untuk environment headless (Railway, Docker tanpa display) ────
-# opencv-python-headless menghapus fungsi GUI seperti imshow(), waitKey(), dll.
-# Ultralytics YOLO kadang memanggil fungsi-fungsi ini saat inisialisasi model,
-# sehingga perlu di-patch dengan fungsi dummy agar tidak crash di server.
-if not hasattr(cv2, "imshow"):
-    cv2.imshow          = lambda *a, **kw: None
-    cv2.waitKey         = lambda *a, **kw: -1
-    cv2.destroyAllWindows = lambda *a, **kw: None
-    cv2.destroyWindow   = lambda *a, **kw: None
-    cv2.namedWindow     = lambda *a, **kw: None
-    cv2.moveWindow      = lambda *a, **kw: None
-    cv2.resizeWindow    = lambda *a, **kw: None
+# opencv-python-headless di Railway sering kehilangan konstanta maupun
+# fungsi GUI. Ultralytics YOLO mengakses banyak attribute cv2 saat loading
+# model, sehingga semua yang mungkin hilang perlu di-patch dengan nilai
+# default yang aman agar tidak crash di server.
+def _patch_cv2_for_headless() -> None:
+    """Patch konstanta dan fungsi GUI cv2 yang hilang di headless server."""
+
+    # --- Konstanta image-read / image-write ---
+    _constants = {
+        # imread flags
+        "IMREAD_COLOR":        1,
+        "IMREAD_GRAYSCALE":    0,
+        "IMREAD_UNCHANGED":   -1,
+        "IMREAD_ANYCOLOR":     4,
+        "IMREAD_ANYDEPTH":     2,
+        # imwrite flags
+        "IMWRITE_JPEG_QUALITY":    1,
+        "IMWRITE_PNG_COMPRESSION": 16,
+        # color conversion
+        "COLOR_BGR2RGB":   4,
+        "COLOR_RGB2BGR":   4,
+        "COLOR_BGR2GRAY":  6,
+        "COLOR_GRAY2BGR":  8,
+        "COLOR_BGR2HSV":  40,
+        "COLOR_HSV2BGR":  54,
+        # drawing / font
+        "FONT_HERSHEY_SIMPLEX": 0,
+        "LINE_AA":  16,
+        "LINE_8":    8,
+        "FILLED":   -1,
+        # interpolation
+        "INTER_NEAREST":  0,
+        "INTER_LINEAR":   1,
+        "INTER_CUBIC":    2,
+        "INTER_AREA":     3,
+        "INTER_LANCZOS4": 4,
+        # border
+        "BORDER_CONSTANT":   0,
+        "BORDER_REPLICATE":  1,
+        "BORDER_REFLECT":    4,
+        # video capture props
+        "CAP_PROP_FPS":          5,
+        "CAP_PROP_FRAME_COUNT":  7,
+        "CAP_PROP_FRAME_WIDTH":  3,
+        "CAP_PROP_FRAME_HEIGHT": 4,
+    }
+    for attr, val in _constants.items():
+        if not hasattr(cv2, attr):
+            setattr(cv2, attr, val)
+
+    # --- Fungsi GUI yang tidak ada di headless ---
+    _gui_funcs = [
+        "imshow", "waitKey", "destroyAllWindows", "destroyWindow",
+        "namedWindow", "moveWindow", "resizeWindow", "startWindowThread",
+        "setWindowProperty", "getWindowProperty", "pollKey", "selectROI",
+        "selectROIs", "createTrackbar", "getTrackbarPos", "setTrackbarPos",
+    ]
+    for fn in _gui_funcs:
+        if not hasattr(cv2, fn):
+            # waitKey harus return -1 (no key), sisanya None
+            ret = -1 if fn == "waitKey" else None
+            setattr(cv2, fn, lambda *a, _r=ret, **kw: _r)
+
+_patch_cv2_for_headless()
 
 # Import konfigurasi terpusat — satu-satunya dependensi eksternal modul ini
 from config import (

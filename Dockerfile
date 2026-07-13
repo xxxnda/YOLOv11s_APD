@@ -9,10 +9,21 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 # Install Python dependencies
+# Langkah 1: Install semua requirements (ultralytics akan pull opencv-python)
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt \
-    && pip uninstall -y opencv-python opencv-contrib-python opencv-contrib-python-headless || true \
-    && pip install --no-cache-dir opencv-python-headless
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Langkah 2: Hapus SEMUA varian opencv yang mungkin ter-install
+#            (termasuk opencv-python yang ditarik oleh ultralytics)
+RUN pip uninstall -y \
+        opencv-python \
+        opencv-contrib-python \
+        opencv-python-headless \
+        opencv-contrib-python-headless \
+    2>/dev/null || true
+
+# Langkah 3: Install ulang HANYA versi headless (aman untuk server tanpa display)
+RUN pip install --no-cache-dir "opencv-python-headless==4.10.0.84"
 
 # Copy semua file aplikasi
 COPY . .
