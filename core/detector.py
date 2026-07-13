@@ -80,7 +80,7 @@ def _load_model_once() -> object:
         FileNotFoundError : Jika file bobot best.pt tidak ditemukan.
         ImportError       : Jika library Ultralytics tidak terinstalasi.
     """
-    global _model
+    global _model, _load_error
 
     # Guard clause: jika model sudah dimuat, langsung kembalikan cache-nya
     if _model is not None:
