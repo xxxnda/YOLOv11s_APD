@@ -1,4 +1,4 @@
-"""
+﻿"""
 core/detector.py — Modul Deteksi Objek APD Berbasis YOLOv11s + OpenCV
 =======================================================================
 
@@ -101,7 +101,7 @@ _patch_cv2_for_headless()
 # Import konfigurasi terpusat — satu-satunya dependensi eksternal modul ini
 from config import (
     MODEL_PATH,            # Path ke file bobot best.pt hasil training
-    CONFIDENCE_THRESHOLD,  # 0.327 — titik ekuilibrium kurva F1-Confidence
+    CONFIDENCE_THRESHOLD,  # 0.227 — titik ekuilibrium kurva F1-Confidence
     PPE_CLASSES,           # ['helmet', 'vest', 'boots', 'gloves', 'glasses']
     PERSON_CLASS,          # 'person'
     CLASS_COLORS,          # Peta warna bounding box per kelas (format BGR OpenCV)
@@ -249,7 +249,7 @@ class YOLODetector:
 
         Pipeline Eksekusi (Sequential):
             1. [READ]      Baca gambar dari disk menggunakan OpenCV
-            2. [INFER]     Jalankan YOLOv11s (conf >= 0.327, letterbox 640×640)
+            2. [INFER]     Jalankan YOLOv11s (conf >= 0.227, letterbox 640×640)
             3. [EXTRACT]   Ekstrak label unik + hitung jumlah pekerja
             4. [ASSOCIATE] Tentukan APD yang dimiliki masing-masing pekerja
             5. [ANNOTATE]  Gambar bounding box berwarna pada gambar
@@ -303,7 +303,7 @@ class YOLODetector:
             )
 
         # ── STEP 2: Inferensi YOLOv11s ──────────────────────────────────────
-        # conf=CONFIDENCE_THRESHOLD : hanya deteksi dengan keyakinan >= 0.327
+        # conf=CONFIDENCE_THRESHOLD : hanya deteksi dengan keyakinan >= 0.227
         # verbose=False             : matikan log bawaan YOLO di terminal
         # YOLO otomatis: letterboxing ke 640×640, NMS, decode bounding box
         results = self._model(orig_img, conf=CONFIDENCE_THRESHOLD, verbose=False)
@@ -509,3 +509,4 @@ def get_model_class_names() -> list:
     if _model is None:
         return []
     return list(_model.names.values())
+

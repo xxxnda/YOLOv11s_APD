@@ -1,4 +1,4 @@
-# app.py — Routing Controller Utama Aplikasi Flask SAFEWATCH
+﻿# app.py — Routing Controller Utama Aplikasi Flask SAFEWATCH
 # ===========================================================
 #
 # Representasi: Bab III — Sub-bab Perancangan Sistem (Modul Integrasi)
@@ -44,7 +44,7 @@ from flask import (
 from config import (
     UPLOAD_FOLDER,               # Folder sementara gambar asli (dihapus setelah deteksi)
     RESULTS_FOLDER,              # Folder gambar BERANOTASI hasil YOLO (static/results/)
-    CONFIDENCE_THRESHOLD,        # 0.327 — untuk metadata laporan di dashboard
+    CONFIDENCE_THRESHOLD,        # 0.227 — untuk metadata laporan di dashboard
     VALIDATION_CONF_THRESHOLD,   # 0.60  — threshold ketat khusus validasi konteks foto
     PPE_CLASSES,                 # Untuk validasi dan tampilan UI
     RULES_IBPRP,                 # Untuk validasi dropdown aktivitas
@@ -258,7 +258,7 @@ def predict():
     # ── STEP 5: Validasi Berlapis dengan Filter Confidence Ketat ───────────────
     #
     # Validasi menggunakan VALIDATION_CONF_THRESHOLD (0.60) yang LEBIH KETAT
-    # dari threshold inferensi YOLO (0.327). Tujuannya: mencegah false positive
+    # dari threshold inferensi YOLO (0.227). Tujuannya: mencegah false positive
     # seperti jilbab/topi/rambut yang terdeteksi sebagai 'helmet' dengan
     # confidence rendah (0.33–0.45) lolos ke perhitungan IBPRP.
     #
@@ -341,7 +341,7 @@ def predict():
     session["result"] = {
         # ─ Metadata request
         "activity":          activity,           # Nama aktivitas K3 yang dipilih
-        "conf_threshold":    CONFIDENCE_THRESHOLD,  # 0.327 (untuk metadata laporan)
+        "conf_threshold":    CONFIDENCE_THRESHOLD,  # 0.227 (untuk metadata laporan)
 
         # ─ Hasil deteksi dari core/detector.py
         "detected_ppe":      detected_ppe,       # APD yang berhasil terdeteksi
@@ -379,7 +379,7 @@ def dashboard():
         ibprp_rows     (list) : Baris tabel IBPRP
         risk_summary   (dict) : Ringkasan statistik (TR tertinggi, distribusi)
         image_url      (str)  : URL gambar beranotasi
-        conf_threshold (float): 0.327 (untuk footer laporan)
+        conf_threshold (float): 0.227 (untuk footer laporan)
         person_count   (int)  : Jumlah pekerja terdeteksi
     """
     result = session.get("result")
@@ -451,3 +451,4 @@ if __name__ == "__main__":
     # debug=False untuk demo sidang — hindari stack trace di browser
     # Ganti ke debug=True selama pengembangan / testing
     app.run(debug=False, host="0.0.0.0", port=5000)
+

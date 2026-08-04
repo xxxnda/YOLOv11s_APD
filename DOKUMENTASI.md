@@ -1,4 +1,4 @@
-# Panduan Presentasi & Dokumentasi Sistem SAFEWATCH
+﻿# Panduan Presentasi & Dokumentasi Sistem SAFEWATCH
 *(Sistem Deteksi APD Berbasis YOLOv11s untuk Audit K3 Konstruksi)*
 
 Dokumen ini disusun khusus untuk membantu Anda memahami arsitektur proyek dan mempersiapkan presentasi/sidang di depan dosen penguji. 
@@ -32,10 +32,10 @@ Sistem ini dirancang menggunakan arsitektur **Separation of Concerns (SoC)** yan
 
 ### A. `config.py` (Pusat Konfigurasi & Aturan)
 Dosen sering bertanya soal parameter. Di file ini terdapat tiga poin krusial:
-- **`CONFIDENCE_THRESHOLD = 0.327`** 
-  *Penjelasan untuk Dosen:* "Angka ini bukan asal tebak, Pak/Bu. 0.327 adalah titik ekuilibrium (pertemuan optimal) pada kurva F1-Confidence hasil *training* model saya. Di titik ini, model memberikan keseimbangan terbaik antara *Precision* (tidak asal menebak) dan *Recall* (tidak ada objek yang terlewat)."
+- **`CONFIDENCE_THRESHOLD = 0.227`** 
+  *Penjelasan untuk Dosen:* "Angka ini bukan asal tebak, Pak/Bu. 0.227 adalah titik ekuilibrium (pertemuan optimal) pada kurva F1-Confidence hasil *training* model saya. Di titik ini, model memberikan keseimbangan terbaik antara *Precision* (tidak asal menebak) dan *Recall* (tidak ada objek yang terlewat)."
 - **`VALIDATION_CONF_THRESHOLD = 0.60`**
-  *Penjelasan untuk Dosen:* "Ini adalah lapisan keamanan ganda (Dual Filter). Sementara anotasi deteksi YOLO tetap pakai 0.327, sistem memiliki filter validasi kontekstual yang ketat di angka 0.60. Tujuannya agar false-positive dari foto non-konstruksi (seperti jilbab atau topi biasa yang mungkin keliru terdeteksi sebagai 'helmet' dengan confidence 0.35) akan langsung tertolak sebelum masuk ke perhitungan risiko."
+  *Penjelasan untuk Dosen:* "Ini adalah lapisan keamanan ganda (Dual Filter). Sementara anotasi deteksi YOLO tetap pakai 0.227, sistem memiliki filter validasi kontekstual yang ketat di angka 0.60. Tujuannya agar false-positive dari foto non-konstruksi (seperti jilbab atau topi biasa yang mungkin keliru terdeteksi sebagai 'helmet' dengan confidence 0.35) akan langsung tertolak sebelum masuk ke perhitungan risiko."
 - **`RULES_IBPRP` & Pemisahan Folder Hasil**
   *Penjelasan untuk Dosen:* "Sistem dirancang *Strict* dan fokus pada **hanya 3 aktivitas utama** (Pengecoran Lantai, Pemasangan Besi Lantai, Pemasangan Besi Kolom). Folder gambar juga dienkapsulasi dengan baik: `static/uploads/` khusus file mentah user, sedangkan `static/results/` khusus gambar hasil deteksi YOLO. Hal ini agar tidak ada kasus gambar asli tertukar dengan gambar beranotasi di dashboard."
 
@@ -60,3 +60,4 @@ File ini khusus mengurus evaluasi risiko K3.
 - Menghitung **Total Risk (TR) = L × S** untuk setiap pelanggaran.
 - Mengelompokkan tingkat risiko (Kecil, Sedang, Besar).
 - *Modul ini berisi "fungsi murni" (pure functions) yang bekerja secara deterministik tanpa campur tangan AI.*
+

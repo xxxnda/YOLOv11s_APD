@@ -1,4 +1,4 @@
-# config.py — Konfigurasi Terpusat Sistem Deteksi APD K3
+﻿# config.py — Konfigurasi Terpusat Sistem Deteksi APD K3
 # =======================================================
 #
 # Regulasi acuan : PERMEN PUPR No. 10 Tahun 2021 tentang K3 Konstruksi
@@ -7,7 +7,7 @@
 # Catatan untuk sidang:
 #   - Semua nilai L (Likelihood) dan S (Severity) di RULES_IBPRP
 #     diturunkan langsung dari tabel IBPRP PERMEN PUPR No. 10 Tahun 2021.
-#   - Confidence threshold 0.327 adalah titik ekuilibrium kurva F1-Confidence
+#   - Confidence threshold 0.227 adalah titik ekuilibrium kurva F1-Confidence
 #     hasil eksperimen training model YOLOv11s pada dataset kustom ini.
 
 import os
@@ -33,11 +33,11 @@ MODEL_PATH = os.path.join(BASE_DIR, "models", "best.pt")
 # PARAMETER DETEKSI MODEL YOLOV11s
 # ============================================================================
 
-# Confidence threshold dikunci pada nilai EKSAK 0.327
+# Confidence threshold dikunci pada nilai EKSAK 0.227
 # Nilai ini adalah titik ekuilibrium optimal dari kurva F1-Confidence
 # yang diperoleh saat eksperimen training model YOLOv11s kustom.
 # Mengubah nilai ini akan mempengaruhi akurasi deteksi secara signifikan.
-CONFIDENCE_THRESHOLD = 0.327
+CONFIDENCE_THRESHOLD = 0.227
 
 # Threshold confidence KHUSUS VALIDASI KONTEKS FOTO (lebih ketat)
 # Digunakan HANYA pada guard clause di app.py untuk menolak foto non-konstruksi.
@@ -45,7 +45,7 @@ CONFIDENCE_THRESHOLD = 0.327
 # yang mungkin terdeteksi sebagai 'helmet' dengan confidence rendah (0.33–0.45)
 # tidak akan lolos validasi.
 # CATATAN: Nilai ini TIDAK mengubah threshold inferensi YOLO — deteksi
-# dan anotasi bounding box tetap menggunakan CONFIDENCE_THRESHOLD (0.327).
+# dan anotasi bounding box tetap menggunakan CONFIDENCE_THRESHOLD (0.227).
 VALIDATION_CONF_THRESHOLD = 0.60
 
 # Daftar 5 kelas APD wajib yang dikenali oleh model YOLOv11s kustom
@@ -286,3 +286,4 @@ def get_activity_names() -> list:
     # Returns:
     #   List string nama aktivitas untuk mengisi dropdown UI
     return list(RULES_IBPRP.keys())
+
