@@ -1,4 +1,4 @@
-﻿# config.py — Konfigurasi Terpusat Sistem Deteksi APD K3
+# config.py — Konfigurasi Terpusat Sistem Deteksi APD K3
 # =======================================================
 #
 # Regulasi acuan : PERMEN PUPR No. 10 Tahun 2021 tentang K3 Konstruksi
@@ -244,6 +244,15 @@ RULES_IBPRP = {
     },
     # CATATAN: Sistem hanya menerima 3 aktivitas di atas (strict).
     # Aktivitas tidak valid ditolak di app.py sebelum masuk ke engine ini.
+}
+
+# ============================================================================
+# APD WAJIB PER AKTIVITAS
+# Diekstrak dinamis dari RULES_IBPRP agar selalu sinkron.
+# ============================================================================
+ACTIVITY_REQUIRED_PPE = {
+    activity: list(ppes.keys()) 
+    for activity, ppes in RULES_IBPRP.items()
 }
 
 # ============================================================================

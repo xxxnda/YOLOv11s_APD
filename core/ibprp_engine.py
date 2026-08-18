@@ -90,6 +90,7 @@ from typing import Optional
 from config import (
     RULES_IBPRP,    # Tabel Ground Truth IBPRP: aktivitas → APD → {L, S, hazard, catatan_risiko}
     PPE_CLASSES,    # Daftar 5 kelas APD wajib dari model YOLOv11s
+    CLASS_COLORS,   # Bounding box colors
     classify_risk,  # Fungsi klasifikasi TR → 'Kecil'/'Sedang'/'Besar'
 )
 
@@ -97,67 +98,65 @@ from config import (
 # Menggunakan __name__ agar output log bertag 'core.ibprp_engine' di terminal
 logger = logging.getLogger(__name__)
 
+# ── Mapping nama tampilan APD (Bahasa Inggris) ────────────────────────────
+# Digunakan untuk kolom 'apd_hilang' di output tabel IBPRP dashboard
+APD_DISPLAY_NAMES = {
+    'helmet':  'Helmet',
+    'vest':    'Vest',
+    'boots':   'Boots',
+    'gloves':  'Gloves',
+    'glasses': 'Glasses',
+}
+
 
 # ============================================================================
 # FUNGSI UTAMA — evaluate_ibprp_risk()
 # ============================================================================
 
-def evaluate_ibprp_risk(activity: str, detected_labels: set) -> list:
+def evaluate_ibprp_risk(
+    activity: str,
+    compliance_summary: dict,
+    total_persons: int,
+) -> list:
     """
     Evaluasi risiko K3 menggunakan metode IBPRP untuk satu skenario deteksi.
 
     Ini adalah fungsi inti dari sistem — implementasi deterministic rule-based
     reasoning sesuai metodologi IBPRP pada PERMEN PUPR No. 10 Tahun 2021.
 
-    Algoritma (O(n) dimana n = jumlah APD wajib untuk aktivitas ini):
-        1. Ambil tabel aturan APD untuk 'activity' dari RULES_IBPRP
-        2. Untuk setiap APD wajib dalam tabel:
-            a. Cek apakah APD tersebut ada dalam 'detected_labels'
-            b. Jika TIDAK ada (hilang) → lanjutkan ke langkah c
-            c. Ambil nilai L dan S dari tabel lookup
-            d. Hitung TR = L × S
-            e. Klasifikasikan TR → 'Kecil' / 'Sedang' / 'Besar'
-            f. Tambahkan baris hasil ke output
+    Versi v3 (Compliance Summary):
+        Menerima compliance_summary yang berasal dari detector.py.
+        - APD dianggap "hilang" jika statusnya "tidak_ada" atau "sebagian" (n < N)
+        - Field 'pekerja_terdampak' ditambahkan ke output (format: "M dari N")
 
     Args:
         activity (str):
             Nama aktivitas K3 yang dipilih pengguna dari dropdown UI.
-            Harus merupakan kunci valid dalam RULES_IBPRP (config.py).
-            Contoh: "Pengecoran Lantai", "Pemasangan Besi Lantai"
 
-        detected_labels (set[str]):
-            Himpunan label objek yang berhasil dideteksi oleh YOLOv11s.
-            Diterima dari output core/detector.py → hasil['detected_labels'].
-            Contoh: {'person', 'helmet', 'vest'}
+        compliance_summary (dict):
+            Hasil dari summarize_compliance() untuk sinkronisasi dengan panel kiri.
+
+        total_persons (int):
+            Jumlah pekerja terdeteksi (digunakan untuk format "M dari N").
 
     Returns:
         list[dict]: List baris tabel IBPRP, terurut berdasarkan nomor urut.
             Setiap elemen dict memiliki struktur:
             {
-                'no'             (int) : Nomor urut baris tabel (1-indexed)
-                'ppe'            (str) : Nama APD yang hilang (kelas model)
-                'status_deteksi' (str) : Selalu "Tidak Terdeteksi" untuk baris ini
-                'hazard'         (str) : Deskripsi singkat potensi bahaya (untuk UI)
-                'catatan_risiko' (str) : Narasi korelasi aktivitas–APD dari Ground Truth
-                'L'              (int) : Likelihood / Kekerapan (1–5)
-                'S'              (int) : Severity / Keparahan (1–5)
-                'TR'             (int) : Total Risk = L × S (1–25)
-                'risk_level'     (str) : Klasifikasi: 'Kecil', 'Sedang', 'Besar'
-                'color'          (str) : Warna badge UI: 'green', 'orange', 'red'
+                'no'                (int)      : Nomor urut baris tabel (1-indexed)
+                'ppe'               (str)      : Nama APD yang hilang (kelas model)
+                'apd_hilang'        (str)      : Nama tampilan APD Bahasa Indonesia
+                'pekerja_terdampak' (str)      : "M dari N" (BARU)
+                'status_deteksi'    (str)      : Selalu "Tidak Terdeteksi"
+                'hazard'            (str)      : Deskripsi singkat potensi bahaya
+                'catatan_risiko'    (str)      : Narasi korelasi aktivitas–APD
+                'L'                 (int|None) : Likelihood / Kekerapan (1–5)
+                'S'                 (int|None) : Severity / Keparahan (1–5)
+                'TR'                (int|None) : Total Risk = L × S (1–25)
+                'risk_level'        (str)      : 'Kecil', 'Sedang', 'Besar', 'Perlu Kalibrasi'
+                'color'             (str)      : Warna badge UI
+                'keterangan'        (str|None) : Catatan tambahan (untuk Perlu Kalibrasi)
             }
-
-        Mengembalikan list KOSONG [] jika:
-            - Semua APD wajib terpenuhi (tidak ada yang hilang), atau
-            - Aktivitas tidak ditemukan dalam RULES_IBPRP
-
-    Catatan Penting untuk Sidang:
-        - Fungsi ini HANYA mengevaluasi APD yang TIDAK TERDETEKSI.
-          APD yang terdeteksi dianggap aman dan tidak masuk tabel risiko.
-        - Nilai L dan S bersumber dari PERMEN PUPR No. 10 Tahun 2021,
-          sudah tertanam dalam RULES_IBPRP di config.py (bukan hard-coded
-          di sini agar mudah diperbarui).
-        - Fungsi ini MURNI (pure function): output hanya bergantung pada
-          input, tidak ada state eksternal yang dimodifikasi.
     """
 
     # ── Ambil tabel aturan untuk aktivitas yang dipilih ─────────────────────
@@ -170,19 +169,61 @@ def evaluate_ibprp_risk(activity: str, detected_labels: set) -> list:
         )
         return []
 
+    # ── Tentukan APD mana yang perlu dievaluasi ─────────────────────────────
+    # Gunakan keys dari compliance_summary (yang mana merupakan required APD dari aktivitas ini)
+    apd_to_check = list(compliance_summary.keys())
+    
     rows      = []   # Akumulator baris hasil evaluasi
     row_index = 1    # Nomor urut baris tabel (1-indexed, untuk UI)
+    N         = total_persons
 
-    # ── Iterasi setiap APD wajib dalam aturan aktivitas ─────────────────────
-    for ppe_name, rule_params in activity_rules.items():
+    # ── Iterasi setiap APD yang perlu dievaluasi ────────────────────────────
+    for ppe_name in apd_to_check:
+        comp = compliance_summary[ppe_name]
 
-        # ─ Cek status APD: TERPENUHI atau HILANG? ───────────────────────────
-        if ppe_name in detected_labels:
-            # APD ini TERPENUHI → tidak ada risiko → lewati, tidak masuk tabel
-            logger.debug(f"[IBPRP] APD TERPENUHI: '{ppe_name}' — dilewati.")
+        # ─ Tentukan jumlah pekerja yang melanggar (M) ────────────────────────
+        if comp["status"] == "lengkap":
+            # Semua pekerja punya APD ini → tidak ada risiko → lewati
+            logger.debug(f"[IBPRP] APD TERPENUHI (semua pekerja): '{ppe_name}' — dilewati.")
+            continue
+            
+        M = N - comp["n"]  # Jumlah yang kehilangan APD
+
+        # ─ Format string pekerja terdampak ───────────────────────────────────
+        pekerja_terdampak = f"{M} dari {N}" if N > 0 else "0 dari 0"
+
+        # ─ Nama tampilan APD (Bahasa Indonesia) ──────────────────────────────
+        apd_display_name = APD_DISPLAY_NAMES.get(ppe_name, ppe_name.title())
+
+        # ─ Cek apakah kombinasi (activity, ppe) ada di RULES_IBPRP ──────────
+        rule_params = activity_rules.get(ppe_name)
+
+        if rule_params is None:
+            # Kombinasi TIDAK ADA di IBPRP_LOOKUP → Perlu Kalibrasi
+            row = {
+                "no":                row_index,
+                "ppe":               ppe_name,
+                "apd_hilang":        apd_display_name,
+                "pekerja_terdampak": pekerja_terdampak,
+                "status_deteksi":    "Tidak Terdeteksi",
+                "hazard":            "-",
+                "catatan_risiko":    "Kombinasi belum tervalidasi Praktisi K3 pada Lampiran 3",
+                "L":                 None,
+                "S":                 None,
+                "TR":                None,
+                "risk_level":        "Perlu Kalibrasi",
+                "color":             "gray",
+                "keterangan":        "Kombinasi belum tervalidasi Praktisi K3 pada Lampiran 3",
+            }
+            rows.append(row)
+            logger.info(
+                f"[IBPRP] ⚠ APD HILANG (tidak terkalibrasi): '{ppe_name}' | "
+                f"Pekerja terdampak: {pekerja_terdampak} → PERLU KALIBRASI"
+            )
+            row_index += 1
             continue
 
-        # ─ APD ini HILANG → Hitung risiko IBPRP ────────────────────────────
+        # ─ APD ini HILANG dan ADA di RULES → Hitung risiko IBPRP ────────────
         L  = rule_params["L"]      # Likelihood — Ground Truth Pakar (PERMEN PUPR No. 10/2021)
         S  = rule_params["S"]      # Severity   — Ground Truth Pakar (PERMEN PUPR No. 10/2021)
         TR = L * S                 # Total Risk = L × S (rumus matriks K3 standar)
@@ -194,27 +235,48 @@ def evaluate_ibprp_risk(activity: str, detected_labels: set) -> list:
         color_map   = {"Kecil": "green", "Sedang": "orange", "Besar": "red"}
         badge_color = color_map.get(risk_level, "gray")
 
+        # ─ Ambil dan Konversi Warna dari BGR (OpenCV) ke RGB (CSS) ────────────
+        bgr = CLASS_COLORS.get(ppe_name, (200, 200, 200))
+        r, g, b = bgr[2], bgr[1], bgr[0]
+        
+        # RGB murni untuk background
+        box_color_rgb = f"{r}, {g}, {b}"
+        
+        # Gelapkan warna khusus untuk teks jika warnanya sangat terang (seperti kuning/hijau muda)
+        # Ambang batas luminance sederhana (r + g + b)
+        if (r + g + b) > 400:
+            text_r, text_g, text_b = int(r * 0.6), int(g * 0.6), int(b * 0.6)
+        else:
+            text_r, text_g, text_b = r, g, b
+            
+        text_color_rgb = f"{text_r}, {text_g}, {text_b}"
+
         # Ambil narasi catatan_risiko dari Ground Truth — sudah divalidasi pakar
-        # Fallback ke 'hazard' jika field baru belum tersedia (backward-compat)
         catatan = rule_params.get("catatan_risiko", rule_params.get("hazard", "-"))
 
         # ─ Tambahkan baris ke hasil ──────────────────────────────────────────
         row = {
-            "no":             row_index,              # Nomor urut untuk kolom tabel
-            "ppe":            ppe_name,               # Nama APD hilang (contoh: 'helmet')
-            "status_deteksi": "Tidak Terdeteksi",     # Status APD sesuai format output JSON
-            "hazard":         rule_params["hazard"],  # Deskripsi singkat bahaya (untuk UI)
-            "catatan_risiko": catatan,                # Narasi korelasi pakar (detail laporan)
-            "L":              L,                      # Likelihood (Kekerapan)
-            "S":              S,                      # Severity (Keparahan)
-            "TR":             TR,                     # Total Risk = L × S
-            "risk_level":     risk_level,             # 'Kecil' / 'Sedang' / 'Besar'
-            "color":          badge_color,            # Warna UI: 'green'/'orange'/'red'
+            "no":                row_index,              # Nomor urut untuk kolom tabel
+            "ppe":               ppe_name,               # Nama APD hilang (contoh: 'helmet')
+            "apd_hilang":        apd_display_name,       # Nama tampilan Bahasa Indonesia
+            "pekerja_terdampak": pekerja_terdampak,      # "M dari N" (per-person)
+            "status_deteksi":    "Tidak Terdeteksi",     # Status APD sesuai format output JSON
+            "hazard":            rule_params["hazard"],  # Deskripsi singkat bahaya (untuk UI)
+            "catatan_risiko":    catatan,                # Narasi korelasi pakar (detail laporan)
+            "L":                 L,                      # Likelihood (Kekerapan)
+            "S":                 S,                      # Severity (Keparahan)
+            "TR":                TR,                     # Total Risk = L × S
+            "risk_level":        risk_level,             # 'Kecil' / 'Sedang' / 'Besar'
+            "color":             badge_color,            # Warna UI: 'green'/'orange'/'red'
+            "box_color_rgb":     box_color_rgb,          # Warna bounding box untuk UI (R, G, B)
+            "text_color_rgb":    text_color_rgb,         # Warna teks agar kontras
+            "keterangan":        None,                   # Tidak ada catatan tambahan
         }
         rows.append(row)
 
         logger.info(
             f"[IBPRP] ✗ APD HILANG: '{ppe_name}' | "
+            f"Pekerja terdampak: {pekerja_terdampak} | "
             f"L={L}, S={S}, TR={TR} → {risk_level.upper()}"
         )
         row_index += 1
@@ -280,9 +342,9 @@ def summarize_risk(ibprp_rows: list) -> dict:
     # ── Hitung statistik agregat ────────────────────────────────────────────
     total_risks = len(ibprp_rows)
 
-    # Temukan baris dengan nilai TR tertinggi
-    max_row     = max(ibprp_rows, key=lambda r: r["TR"])
-    highest_tr  = max_row["TR"]
+    # Temukan baris dengan nilai TR tertinggi (None dianggap 0 untuk Perlu Kalibrasi)
+    max_row     = max(ibprp_rows, key=lambda r: r["TR"] or 0)
+    highest_tr  = max_row["TR"] or 0
 
     # Tentukan level dan warna untuk TR tertinggi
     highest_level = classify_risk(highest_tr)
@@ -314,58 +376,7 @@ def summarize_risk(ibprp_rows: list) -> dict:
     return summary
 
 
-# ============================================================================
-# FUNGSI UTILITAS — get_missing_ppe_for_activity()
-# ============================================================================
 
-def get_missing_ppe_for_activity(
-    activity: str,
-    detected_labels: set,
-) -> list:
-    """
-    Tentukan APD yang hilang berdasarkan aturan wajib untuk satu aktivitas.
-
-    Versi ringan dari evaluate_ibprp_risk() yang hanya mengembalikan
-    nama-nama APD yang hilang (tanpa nilai L, S, TR, dll).
-    Berguna untuk tampilan daftar singkat di UI atau untuk filtering.
-
-    Args:
-        activity        (str)     : Nama aktivitas K3 (kunci RULES_IBPRP).
-        detected_labels (set[str]): Himpunan label terdeteksi oleh YOLO.
-
-    Returns:
-        list[str]: List nama APD yang HILANG untuk aktivitas ini.
-                   Contoh: ['boots', 'gloves']
-                   Mengembalikan [] jika semua APD terpenuhi atau aktivitas invalid.
-    """
-    activity_rules = RULES_IBPRP.get(activity, {})
-
-    return [
-        ppe_name
-        for ppe_name in activity_rules
-        if ppe_name not in detected_labels
-    ]
-
-
-# ============================================================================
-# FUNGSI UTILITAS — get_required_ppe_for_activity()
-# ============================================================================
-
-def get_required_ppe_for_activity(activity: str) -> list:
-    """
-    Kembalikan daftar APD wajib untuk suatu aktivitas K3.
-
-    Berguna untuk menampilkan informasi kontekstual di UI sebelum
-    pengguna mengunggah gambar ("Untuk aktivitas ini, APD yang wajib: ...")
-
-    Args:
-        activity (str): Nama aktivitas K3 (kunci dalam RULES_IBPRP).
-
-    Returns:
-        list[str]: List nama APD wajib. Contoh: ['helmet', 'vest', 'boots']
-                   Mengembalikan [] jika aktivitas tidak ditemukan.
-    """
-    return list(RULES_IBPRP.get(activity, {}).keys())
 
 
 # ============================================================================

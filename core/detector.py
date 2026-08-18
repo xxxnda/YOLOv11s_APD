@@ -1,4 +1,4 @@
-﻿"""
+"""
 core/detector.py — Modul Deteksi Objek APD Berbasis YOLOv11s + OpenCV
 =======================================================================
 
@@ -358,6 +358,13 @@ class YOLODetector:
         # Digunakan oleh app.py untuk menerapkan threshold 0.60 pada validasi konteks
         # tanpa mengubah perilaku YOLO atau threshold inferensi.
         raw_confidences: dict = {}   # { label: max_confidence_score }
+
+        # ── Kumpulkan SEMUA deteksi individual untuk per-person counting ─────
+        # Setiap deteksi menyimpan class_name, bbox [x1,y1,x2,y2], confidence.
+        # Data ini digunakan oleh count_apd_compliance_per_person() untuk
+        # spatial association APD → person menggunakan containment ratio.
+        all_detections: list = []   # list of dict {class_name, bbox, confidence}
+
         for result in results:
             for box in result.boxes:
                 conf = float(box.conf[0]) if box.conf is not None else 0.0
@@ -369,7 +376,16 @@ class YOLODetector:
                 if label not in raw_confidences or conf > raw_confidences[label]:
                     raw_confidences[label] = conf
 
+                # Kumpulkan deteksi individual (bbox format xyxy)
+                bbox_coords = box.xyxy[0].tolist()  # [x1, y1, x2, y2]
+                all_detections.append({
+                    "class_name": label,
+                    "bbox":       bbox_coords,
+                    "confidence": conf,
+                })
+
         logger.info(f"[CONF] Confidence per label: { {k: f'{v:.3f}' for k, v in raw_confidences.items()} }")
+        logger.info(f"[DETECTIONS] Total deteksi individual: {len(all_detections)}")
 
         # ── STEP 5 & 6: Anotasi + Simpan Gambar ─────────────────────────────
         # Gambar beranotasi disimpan ke RESULTS_FOLDER (static/results/)
@@ -392,6 +408,7 @@ class YOLODetector:
             "person_count":       person_count,        # jumlah pekerja (bounding box person)
             "saved_image_url":    saved_image_url,     # URL gambar beranotasi (/static/results/...)
             "raw_confidences":    raw_confidences,     # dict label→max_conf (untuk validasi ketat)
+            "all_detections":     all_detections,      # list deteksi individual (untuk per-person counting)
             "raw_results":        results,             # objek Results mentah (debug)
         }
 
@@ -510,3 +527,160 @@ def get_model_class_names() -> list:
         return []
     return list(_model.names.values())
 
+
+# ============================================================================
+# FUNGSI CONTAINMENT — Spatial Association APD → Person
+#
+# Representasi: Bab IV — Sub-bab 4.6.4 Per-Person APD Counting
+#
+# Prinsip: APD dianggap "milik" seorang pekerja jika ≥70% area bounding box
+# APD tersebut berada di dalam bounding box pekerja (person).
+# Menggunakan rasio containment (bukan IoU) karena APD selalu lebih kecil
+# dari person — containment lebih intuitif dan stabil.
+# ============================================================================
+
+CONTAINMENT_THRESHOLD = 0.5
+
+
+def compute_containment(apd_bbox: list, person_bbox: list) -> float:
+    """
+    Hitung rasio containment: seberapa besar area APD berada di dalam
+    bounding box person.
+
+    Containment dipilih karena lebih sesuai daripada IoU untuk kasus ini:
+    APD (helm, rompi, dll) selalu jauh lebih kecil dari person, sehingga
+    IoU akan selalu kecil meski APD sepenuhnya di dalam person.
+
+    Args:
+        apd_bbox    : [x1, y1, x2, y2] koordinat bbox APD
+        person_bbox : [x1, y1, x2, y2] koordinat bbox person
+
+    Returns:
+        float: rasio (area_intersect / area_apd), range 0.0–1.0
+               1.0 berarti APD sepenuhnya di dalam person
+               0.0 berarti tidak ada overlap sama sekali
+    """
+    # Hitung koordinat intersection rectangle
+    x1 = max(apd_bbox[0], person_bbox[0])
+    y1 = max(apd_bbox[1], person_bbox[1])
+    x2 = min(apd_bbox[2], person_bbox[2])
+    y2 = min(apd_bbox[3], person_bbox[3])
+
+    # Tidak ada intersection jika batas tidak valid
+    if x2 <= x1 or y2 <= y1:
+        return 0.0
+
+    intersect_area = (x2 - x1) * (y2 - y1)
+    apd_area = (apd_bbox[2] - apd_bbox[0]) * (apd_bbox[3] - apd_bbox[1])
+
+    # Guard: APD dengan area nol (degenerate bbox)
+    if apd_area == 0:
+        return 0.0
+
+    return intersect_area / apd_area
+
+
+def summarize_compliance(
+    detections: list,
+    activity: str,
+    required_apd_list: list,
+) -> dict:
+    """
+    Hitung compliance APD per pekerja dari hasil deteksi YOLO.
+
+    Algoritma:
+        1. Pisahkan deteksi menjadi persons dan APDs
+        2. Untuk setiap person:
+           a. Untuk setiap APD wajib:
+              - Cek apakah ada APD kelas tersebut yang ter-contain >=50%
+                di dalam bounding box person
+              - Jika ya → APD terpenuhi untuk person ini
+        3. Hitung summary: berapa person yang memiliki APD tertentu (n dari N)
+
+    Args:
+        detections       : list of dict {class_name, bbox, confidence}
+                           dari output YOLODetector.detect()['all_detections']
+        activity         : string aktivitas terpilih (untuk logging)
+        required_apd_list: list APD wajib untuk aktivitas ini
+
+    Returns:
+        dict:
+            total_persons      (int)  : Jumlah pekerja terdeteksi
+            compliance_summary (dict) : {apd_class: {"n": int, "N": int, "status": str}}
+            person_details     (list) : [{person_id, compliance: {apd: bool}}]
+    """
+    # ── Pisahkan deteksi: person vs APD ──────────────────────────────────────
+    persons = [d for d in detections if d['class_name'] == 'person']
+    apds_by_class = {}
+    for apd_class in ['helmet', 'vest', 'boots', 'gloves', 'glasses']:
+        apds_by_class[apd_class] = [
+            d for d in detections if d['class_name'] == apd_class
+        ]
+
+    total_persons = len(persons)
+
+    # Guard: tidak ada pekerja terdeteksi
+    if total_persons == 0:
+        logger.warning(
+            f"[PER-PERSON] Person tidak terdeteksi untuk aktivitas '{activity}', "
+            f"IBPRP tidak diproses. APD terdeteksi: {[d['class_name'] for d in detections if d['class_name'] != 'person']}"
+        )
+        return {
+            "total_persons": 0,
+            "compliance_summary": {apd: {"n": 0, "N": 0, "status": "tidak lengkap"} for apd in required_apd_list},
+            "person_details": [],
+        }
+
+    # ── Evaluasi compliance per pekerja ──────────────────────────────────────
+    person_details = []
+
+    for idx, person in enumerate(persons):
+        compliance = {}
+        for apd_class in required_apd_list:
+            matched = False
+            for apd in apds_by_class.get(apd_class, []):
+                ratio = compute_containment(apd['bbox'], person['bbox'])
+                if ratio >= CONTAINMENT_THRESHOLD:
+                    matched = True
+                    break
+            compliance[apd_class] = matched
+
+        person_details.append({
+            "person_id": idx + 1,
+            "compliance": compliance,
+        })
+
+    # ── Hitung summary: berapa pekerja yang memiliki APD tertentu ───────────
+    compliance_summary = {}
+    for apd_class in required_apd_list:
+        count_present = sum(
+            1 for pd in person_details
+            if pd['compliance'].get(apd_class, False)
+        )
+        
+        status = "tidak lengkap"
+        if count_present == total_persons:
+            status = "lengkap"
+            
+        compliance_summary[apd_class] = {
+            "n": count_present,
+            "N": total_persons,
+            "status": status,
+        }
+
+    # ── Log detail untuk debugging ──────────────────────────────────────────
+    logger.info(
+        f"[PER-PERSON] Aktivitas: '{activity}' | "
+        f"Total pekerja: {total_persons} | "
+        f"Summary: {compliance_summary}"
+    )
+    for pd in person_details:
+        logger.debug(
+            f"[PER-PERSON] Person #{pd['person_id']}: {pd['compliance']}"
+        )
+
+    return {
+        "total_persons": total_persons,
+        "compliance_summary": compliance_summary,
+        "person_details": person_details,
+    }

@@ -102,6 +102,12 @@
             animation: pulseBadge 2s ease-in-out infinite;
         }
 
+        .badge-kalibrasi {
+            background: rgba(148, 163, 184, 0.2);
+            color: #475569;
+            border: 1px solid rgba(148, 163, 184, 0.4);
+        }
+
         @keyframes pulseBadge {
 
             0%,
@@ -116,75 +122,64 @@
 
         /* ── Tabel laporan ──────────────────────────────────────────────── */
         .report-table {
-            table-layout: fixed;
+            table-layout: auto;
             width: 100%;
+            border-spacing: 0;
+            border-collapse: collapse;
         }
 
         .report-table th {
             background: #1e3a8a;
             color: #ffffff;
-            font-size: 0.62rem;
+            font-size: 0.68rem;
             font-weight: 700;
             text-transform: uppercase;
-            letter-spacing: 0.04em;
-            padding: 9px 6px;
-            white-space: normal;
-            word-break: break-word;
-            border-bottom: 1px solid #bfdbfe;
+            letter-spacing: 0.05em;
+            padding: 14px 16px;
+            white-space: nowrap;
+            border-bottom: 2px solid #3b82f6;
             text-align: center;
         }
 
         .report-table td {
-            padding: 8px 6px;
-            font-size: 0.72rem;
+            padding: 14px 16px;
+            font-size: 0.78rem;
             border-bottom: 1px solid #e2e8f0;
             vertical-align: middle;
             color: #1e293b;
-            word-break: break-word;
-            overflow-wrap: break-word;
+        }
+
+        .report-table tbody tr {
+            transition: background 0.15s ease;
         }
 
         .report-table tbody tr:hover {
-            background: rgba(59, 130, 246, 0.04);
+            background: rgba(59, 130, 246, 0.06);
         }
 
-        /* lebar kolom */
-        .report-table col.col-no {
-            width: 5%;
+        .report-table tbody tr:nth-child(even) {
+            background: rgba(248, 250, 252, 0.6);
         }
 
-        .report-table col.col-apd {
-            width: 17%;
+        .report-table tbody tr:nth-child(even):hover {
+            background: rgba(59, 130, 246, 0.06);
         }
 
-        .report-table col.col-l {
-            width: 7%;
-        }
-
-        .report-table col.col-s {
-            width: 7%;
-        }
-
-        .report-table col.col-tr {
-            width: 7%;
-        }
-
-        .report-table col.col-risk {
-            width: 16%;
-        }
-
-        .report-table col.col-haz {
-            width: 41%;
-        }
-
-        /* badge tingkat risiko tidak boleh wrap */
+        /* kolom numerik & label tidak boleh wrap */
+        .report-table td.col-num,
         .report-table td.col-risk-cell {
             white-space: nowrap;
+            text-align: center;
         }
 
         .report-table td.col-risk-cell span {
             display: inline-block;
             white-space: nowrap;
+        }
+
+        /* kolom potensi bahaya boleh wrap tapi punya min-width */
+        .report-table td.col-haz-cell {
+            min-width: 180px;
         }
 
         /* ── Gambar bounding box ───────────────────────────────────────────── */
@@ -283,7 +278,7 @@
             /* ── Tabel ── */
             .report-table {
                 width: 100% !important;
-                table-layout: fixed !important;
+                table-layout: auto !important;
                 font-size: 0.65rem !important;
                 border-collapse: collapse !important;
             }
@@ -291,11 +286,8 @@
             .report-table th,
             .report-table td {
                 border: 1px solid #94a3b8 !important;
-                padding: 5px 7px !important;
+                padding: 4px 6px !important;
                 color: #000 !important;
-                word-break: break-word !important;
-                overflow-wrap: break-word !important;
-                white-space: normal !important;
             }
 
             .report-table th {
@@ -326,6 +318,14 @@
                 color: #991b1b !important;
                 border: 1px solid #fca5a5 !important;
                 animation: none !important;
+                -webkit-print-color-adjust: exact;
+                print-color-adjust: exact;
+            }
+
+            .badge-kalibrasi {
+                background: #f1f5f9 !important;
+                color: #475569 !important;
+                border: 1px solid #cbd5e1 !important;
                 -webkit-print-color-adjust: exact;
                 print-color-adjust: exact;
             }
@@ -487,66 +487,49 @@
                             class="w-full object-contain">
                     </div>
 
-                    <!-- Badge baris bawah: APD Terdeteksi | APD Hilang | Orang Terdeteksi -->
-                    <div class="grid grid-cols-3 gap-3">
-
-                        <!-- Badge: APD Terdeteksi -->
-                        <div class="bg-blue-50 border border-blue-200 rounded-xl p-4">
-                            <div class="text-blue-600 text-xs font-bold tracking-wide uppercase mb-2 flex items-center gap-1.5">
-                                <svg class="w-3.5 h-3.5 flex-shrink-0" fill="currentColor" viewBox="0 0 24 24">
-                                    <path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                                </svg>
-                                APD Terdeteksi
+                    <!-- Status Kepatuhan APD per Kategori -->
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
+                        {% for ppe in required_ppe %}
+                        {% set comp = compliance_summary.get(ppe, {"n": 0, "N": 0, "status": "tidak_ada"}) %}
+                        <div class="bg-slate-50 border border-slate-200 rounded-xl p-3 flex justify-between items-center">
+                            <div>
+                                <div class="text-slate-800 font-bold text-sm capitalize">{{ ppe }}</div>
+                                <div class="text-slate-500 text-xs mt-0.5">{{ comp.N - comp.n }} dari {{ comp.N }} pekerja</div>
                             </div>
-                            <div class="text-slate-700 font-semibold text-sm leading-snug">
-                                {% if detected_ppe %}
-                                {{ detected_ppe | join(', ') | title }}
+                            <div>
+                                {% if comp.status == 'lengkap' %}
+                                <span class="bg-emerald-100 text-emerald-700 border border-emerald-200 text-xs font-bold px-2 py-1 rounded-md">Lengkap</span>
                                 {% else %}
-                                <span class="text-slate-400 italic">Tidak ada</span>
+                                <span class="bg-red-100 text-red-700 border border-red-200 text-xs font-bold px-2 py-1 rounded-md">Tidak Lengkap</span>
                                 {% endif %}
                             </div>
                         </div>
+                        {% endfor %}
+                    </div>
 
-                        <!-- Badge: APD Hilang -->
-                        <div class="bg-red-50 border border-red-200 rounded-xl p-4">
-                            <div class="text-red-600 text-xs font-bold tracking-wide uppercase mb-2 flex items-center gap-1.5">
-                                <svg class="w-3.5 h-3.5 flex-shrink-0" fill="currentColor" viewBox="0 0 24 24">
-                                    <path d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                                </svg>
-                                APD Hilang
-                            </div>
-                            <div class="text-slate-700 font-semibold text-sm leading-snug">
-                                {% if missing_ppe %}
-                                {{ missing_ppe | join(', ') | title }}
-                                {% else %}
-                                <span class="text-emerald-600 font-bold">✓ Semua terpenuhi</span>
-                                {% endif %}
-                            </div>
+                    <!-- Badge: Orang Terdeteksi -->
+                    <div class="bg-emerald-50 border border-emerald-200 rounded-xl p-4 flex justify-between items-center">
+                        <div class="text-emerald-700 text-xs font-bold tracking-wide uppercase flex items-center gap-1.5">
+                            <svg class="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
+                            </svg>
+                            Total Orang Terdeteksi
                         </div>
-
-                        <!-- Badge: Orang Terdeteksi -->
-                        <div class="bg-emerald-50 border border-emerald-200 rounded-xl p-4">
-                            <div class="text-emerald-600 text-xs font-bold tracking-wide uppercase mb-2 flex items-center gap-1.5">
-                                <svg class="w-3.5 h-3.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                        d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
-                                </svg>
-                                Orang Terdeteksi
-                            </div>
-                            <div class="flex items-baseline gap-2">
-                                <span class="text-emerald-900 font-black text-3xl leading-none">
-                                    {{ person_count if person_count is defined and person_count != None else 0 }}
-                                </span>
-                                <span class="text-emerald-700/70 font-semibold text-sm">orang</span>
-                            </div>
+                        <div class="flex items-baseline gap-2">
+                            <span class="text-emerald-900 font-black text-2xl leading-none">
+                                {{ person_count if person_count is defined and person_count != None else 0 }}
+                            </span>
                         </div>
-
                     </div>
                 </div>
                 <!-- ── end panel kiri ── -->
 
                 <!-- ══ PANEL KANAN — Tabel IBPRP ══ -->
                 <div class="panel-right">
+                    
+
+
                     <div class="flex items-center gap-3 mb-4 no-print">
                         <div class="w-1 h-5 bg-blue-600 rounded-full"></div>
                         <h2 class="text-slate-700 font-bold text-sm tracking-wide uppercase">Tabel Laporan IBPRP</h2>
@@ -556,53 +539,56 @@
                     <div
                         class="bg-white rounded-2xl shadow-sm overflow-hidden border border-slate-200">
                         {% if ibprp_rows %}
-                        <div class="overflow-x-hidden w-full">
-                            <table class="report-table border-collapse">
-                                <colgroup>
-                                    <col class="col-no">
-                                    <col class="col-apd">
-                                    <col class="col-l">
-                                    <col class="col-s">
-                                    <col class="col-tr">
-                                    <col class="col-risk">
-                                    <col class="col-haz">
-                                </colgroup>
+                        <div class="overflow-x-auto w-full">
+                            <table class="report-table">
                                 <thead>
                                     <tr>
-                                        <th class="text-center">No</th>
+                                        <th>No</th>
                                         <th>APD Hilang</th>
-                                        <th class="text-center">L</th>
-                                        <th class="text-center">S</th>
-                                        <th class="text-center">TR</th>
-                                        <th class="text-center">Tingkat Risiko</th>
-                                        <th>Potensi Bahaya</th>
+                                        <th>Pekerja Terdampak</th>
+                                        <th>L</th>
+                                        <th>S</th>
+                                        <th>TR</th>
+                                        <th>Tingkat Risiko</th>
                                     </tr>
                                 </thead>
                                 <tbody>
                                     {% for row in ibprp_rows %}
                                     <tr>
-                                        <td class="text-center font-bold text-slate-400 text-xs">{{ row.no }}</td>
+                                        <td class="text-center font-bold text-slate-400">{{ row.no }}</td>
                                         <td>
                                             <span
-                                                class="inline-flex items-center bg-red-100 text-red-700 font-bold text-xs px-2 py-1 rounded-full border border-red-200 whitespace-nowrap">
-                                                {{ row.ppe | title }}
+                                                class="inline-flex items-center font-bold text-xs px-3 py-1.5 rounded-full border whitespace-nowrap"
+                                                style="background-color: rgba({{ row.box_color_rgb }}, 0.15); color: rgb({{ row.text_color_rgb }}); border-color: rgba({{ row.text_color_rgb }}, 0.5);">
+                                                {{ row.apd_hilang if row.apd_hilang else (row.ppe | title) }}
                                             </span>
                                         </td>
-                                        <td class="text-center"><span class="font-black text-slate-800 text-base">{{ row.L }}</span></td>
-                                        <td class="text-center"><span class="font-black text-slate-800 text-base">{{ row.S }}</span></td>
-                                        <td class="text-center">
+                                        <td class="col-num">
+                                            <span class="font-semibold text-slate-700 text-xs">
+                                                {{ row.pekerja_terdampak if row.pekerja_terdampak else '-' }}
+                                            </span>
+                                        </td>
+                                        <td class="col-num"><span class="font-black text-slate-800 text-base">{{ row.L if row.L is not none else '-' }}</span></td>
+                                        <td class="col-num"><span class="font-black text-slate-800 text-base">{{ row.S if row.S is not none else '-' }}</span></td>
+                                        <td class="col-num">
+                                            {% if row.TR is not none %}
                                             <span
                                                 class="font-black text-lg {% if row.risk_level == 'Besar' %}text-red-600{% elif row.risk_level == 'Sedang' %}text-orange-500{% else %}text-green-600{% endif %}">
                                                 {{ row.TR }}
                                             </span>
+                                            {% else %}
+                                            <span class="font-black text-lg text-slate-400">-</span>
+                                            {% endif %}
                                         </td>
-                                        <td class="text-center col-risk-cell">
+                                        <td class="col-risk-cell">
                                             <span
-                                                class="inline-block px-2 py-1 rounded-lg text-xs font-black tracking-wide whitespace-nowrap {% if row.risk_level == 'Besar' %}badge-besar{% elif row.risk_level == 'Sedang' %}badge-sedang{% else %}badge-kecil{% endif %}">
+                                                class="inline-block px-3 py-1.5 rounded-lg text-xs font-black tracking-wide whitespace-nowrap {% if row.risk_level == 'Besar' %}badge-besar{% elif row.risk_level == 'Sedang' %}badge-sedang{% elif row.risk_level == 'Perlu Kalibrasi' %}badge-kalibrasi{% else %}badge-kecil{% endif %}">
                                                 {{ row.risk_level }}
                                             </span>
+                                            {% if row.keterangan %}
+                                            <br><small class="text-slate-400 text-xs">{{ row.keterangan }}</small>
+                                            {% endif %}
                                         </td>
-                                        <td class="text-slate-500 text-xs leading-relaxed">{{ row.hazard }}</td>
                                     </tr>
                                     {% endfor %}
                                 </tbody>
@@ -625,8 +611,24 @@
                                         class="text-xs text-slate-500">Besar (TR 15–25)</span>
                                 </div>
                             </div>
-                            <p class="text-slate-400 text-xs">Rumus: <strong class="text-slate-600">TR = L (Likelihood) ×
-                                    S (Severity)</strong> · PERMEN PUPR No. 10 Tahun 2021</p>
+                            <p class="text-slate-400 text-xs mb-1">Rumus: <strong class="text-slate-600">TR = L (Likelihood) × S (Severity)</strong></p>
+                            <p class="text-slate-400 text-xs mb-1">Pekerja Terdampak: <strong class="text-slate-600">M dari N</strong></p>
+                            <p class="text-slate-400 text-xs mb-1">(M = Jumlah pekerja tidak menggunakan APD, N = Total pekerja terdeteksi)</p>
+                            <p class="text-slate-400 text-xs mb-4">PERMEN PUPR No. 10 Tahun 2021</p>
+
+                            <!-- Keterangan Potensi Bahaya List -->
+                            <div class="border-t border-slate-200 pt-4 mt-2">
+                                <h4 class="font-bold text-slate-700 text-sm mb-3">Keterangan Potensi Bahaya:</h4>
+                                <ul class="space-y-2">
+                                    {% for ppe, rules in activity_rules.items() %}
+                                    <li class="flex items-start text-xs text-slate-600">
+                                        <span class="font-bold text-slate-700 w-16 flex-shrink-0 capitalize">• {{ ppe }}</span>
+                                        <span class="text-slate-400 mx-2">:</span>
+                                        <span class="leading-relaxed">{{ rules.hazard }}</span>
+                                    </li>
+                                    {% endfor %}
+                                </ul>
+                            </div>
                         </div>
 
                         {% else %}

@@ -1,4 +1,4 @@
-﻿# app.py — Routing Controller Utama Aplikasi Flask SAFEWATCH
+# app.py — Routing Controller Utama Aplikasi Flask SAFEWATCH
 # ===========================================================
 #
 # Representasi: Bab III — Sub-bab Perancangan Sistem (Modul Integrasi)
@@ -48,6 +48,7 @@ from config import (
     VALIDATION_CONF_THRESHOLD,   # 0.60  — threshold ketat khusus validasi konteks foto
     PPE_CLASSES,                 # Untuk validasi dan tampilan UI
     RULES_IBPRP,                 # Untuk validasi dropdown aktivitas
+    ACTIVITY_REQUIRED_PPE,
     get_activity_names,          # Helper: ambil list nama aktivitas untuk dropdown
 )
 
@@ -58,12 +59,10 @@ from config import (
 ALLOWED_ACTIVITIES = frozenset(RULES_IBPRP.keys())
 
 # ── Import modul inti (core package) — SoC ──────────────────────────────────
-from core.detector import YOLODetector, is_model_available
+from core.detector import YOLODetector, is_model_available, summarize_compliance
 from core.ibprp_engine import (
     evaluate_ibprp_risk,             # Hitung risiko IBPRP per APD hilang
     summarize_risk,                  # Agregasi statistik hasil IBPRP
-    get_required_ppe_for_activity,   # Ambil APD wajib per aktivitas (untuk UI)
-    get_missing_ppe_for_activity,    # Ambil APD hilang spesifik per aktivitas
 )
 
 # ============================================================================
@@ -312,27 +311,41 @@ def predict():
         f"| High-conf APD: {high_conf_ppe}"
     )
 
+    # ── STEP 5b: Per-Person APD Counting (BARU) ────────────────────────────
+    # Hitung compliance APD per pekerja menggunakan containment-based
+    # spatial association. Setiap APD di-assign ke person terdekat yang
+    # bounding box-nya mencakup ≥50% area APD.
+    all_detections = det_output["all_detections"]
+    required_ppe   = ACTIVITY_REQUIRED_PPE.get(activity, [])
+
+    compliance_result = summarize_compliance(
+        detections        = all_detections,
+        activity          = activity,
+        required_apd_list = required_ppe,
+    )
+
+    logger.info(
+        f"[PER-PERSON] Selesai | "
+        f"Total pekerja: {compliance_result['total_persons']} | "
+        f"Summary: {compliance_result['compliance_summary']}"
+    )
+
     # ── STEP 6: Evaluasi risiko IBPRP menggunakan core/ibprp_engine.py ───────
     # Delegasi PENUH ke ibprp_engine.py — app.py hanya mengoper parameter
-    # Catatan: missing_ppe yang digunakan adalah yang SPESIFIK untuk aktivitas ini,
-    # bukan missing_ppe global dari detector. Engine akan menghitung sendiri
-    # berdasarkan detected_labels + RULES_IBPRP[activity].
+    # Menggunakan compliance_summary untuk evaluasi per-pekerja (v3)
     ibprp_rows = evaluate_ibprp_risk(
-        activity        = activity,
-        detected_labels = detected_labels,
+        activity           = activity,
+        compliance_summary = compliance_result['compliance_summary'],
+        total_persons      = person_count,
     )
 
     # ── STEP 7: Agregasi statistik hasil IBPRP ───────────────────────────────
     # Delegasi ke ibprp_engine.py — menghasilkan ringkasan untuk header dashboard
     risk_summary = summarize_risk(ibprp_rows)
 
-    # APD wajib dan APD hilang — delegasi ke ibprp_engine agar tidak duplikasi logika
-    required_ppe         = get_required_ppe_for_activity(activity)
-    activity_missing_ppe = get_missing_ppe_for_activity(activity, detected_labels)
-
     logger.info(
         f"[IBPRP] Selesai | Baris risiko: {len(ibprp_rows)} | "
-        f"APD hilang: {activity_missing_ppe} | Ringkasan: {risk_summary}"
+        f"Ringkasan: {risk_summary}"
     )
 
     # ── STEP 8: Simpan hasil ke Flask session + redirect ─────────────────────
@@ -343,16 +356,16 @@ def predict():
         "activity":          activity,           # Nama aktivitas K3 yang dipilih
         "conf_threshold":    CONFIDENCE_THRESHOLD,  # 0.227 (untuk metadata laporan)
 
-        # ─ Hasil deteksi dari core/detector.py
-        "detected_ppe":      detected_ppe,       # APD yang berhasil terdeteksi
-        "missing_ppe":       activity_missing_ppe, # APD hilang (spesifik aktivitas)
-        "required_ppe":      required_ppe,       # APD yang wajib untuk aktivitas ini
-        "person_count":      person_count,       # Jumlah pekerja terdeteksi
-        "image_url":         saved_image_url,    # URL gambar beranotasi bounding box
+        # ─ Hasil deteksi
+        "required_ppe":       required_ppe,       # APD yang wajib untuk aktivitas ini
+        "person_count":       person_count,       # Jumlah pekerja terdeteksi
+        "image_url":          saved_image_url,    # URL gambar beranotasi bounding box
 
-        # ─ Hasil evaluasi dari core/ibprp_engine.py
-        "ibprp_rows":        ibprp_rows,         # Baris tabel IBPRP (list of dict)
-        "risk_summary":      risk_summary,       # Ringkasan statistik risiko
+        # ─ Hasil evaluasi
+        "ibprp_rows":         ibprp_rows,         # Baris tabel IBPRP (list of dict)
+        "risk_summary":       risk_summary,       # Ringkasan statistik risiko
+        "person_details":     compliance_result.get("person_details", []), # Detail per pekerja
+        "compliance_summary": compliance_result.get("compliance_summary", {}), # Summary per APD
     }
 
     return redirect(url_for("dashboard"))
@@ -390,15 +403,16 @@ def dashboard():
 
     return render_template(
         "dashboard.html",
-        activity        = result["activity"],
-        detected_ppe    = result["detected_ppe"],
-        missing_ppe     = result["missing_ppe"],
-        required_ppe    = result.get("required_ppe", []),
-        ibprp_rows      = result["ibprp_rows"],
-        risk_summary    = result.get("risk_summary", {}),
-        image_url       = result["image_url"],
-        conf_threshold  = result["conf_threshold"],
-        person_count    = result.get("person_count", 0),
+        activity           = result["activity"],
+        required_ppe       = result.get("required_ppe", []),
+        ibprp_rows         = result["ibprp_rows"],
+        risk_summary       = result.get("risk_summary", {}),
+        image_url          = result["image_url"],
+        conf_threshold     = result["conf_threshold"],
+        person_count       = result.get("person_count", 0),
+        person_details     = result.get("person_details", []),
+        compliance_summary = result.get("compliance_summary", {}),
+        activity_rules     = RULES_IBPRP.get(result["activity"], {}),
     )
 
 
